@@ -7,6 +7,236 @@ import sys
 import json
 import copy
 import snakemake
+from snakemake import *
+
+def main(argv=None):
+    """Main entry point."""
+    parser = get_argument_parser()
+    args = parser.parse_args(argv)
+
+    if args.profile:
+        # reparse args while inferring config file from profile
+        parser = get_argument_parser(args.profile)
+        args = parser.parse_args(argv)
+        def adjust_path(f):
+            if os.path.exists(f) or os.path.isabs(f):
+                return f
+            else:
+                return get_profile_file(args.profile, f, return_default=True)
+
+        # update file paths to be relative to the profile
+        # (if they do not exist relative to CWD)
+        if args.jobscript:
+            args.jobscript = adjust_path(args.jobscript)
+        if args.cluster:
+            args.cluster = adjust_path(args.cluster)
+        if args.cluster_sync:
+            args.cluster_sync = adjust_path(args.cluster_sync)
+        if args.cluster_status:
+            args.cluster_status = adjust_path(args.cluster_status)
+
+    if args.bash_completion:
+        cmd = b"complete -o bashdefault -C snakemake-bash-completion snakemake"
+        sys.stdout.buffer.write(cmd)
+        sys.exit(0)
+
+    try:
+        resources = parse_resources(args)
+        config = parse_config(args)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        print("", file=sys.stderr)
+        parser.print_help()
+        sys.exit(1)
+
+    if (args.cluster or args.cluster_sync or args.drmaa):
+        if args.cores is None:
+            if args.dryrun:
+                args.cores = 1
+            else:
+                print(
+                    "Error: you need to specify the maximum number of jobs to "
+                    "be queued or executed at the same time with --jobs.",
+                    file=sys.stderr)
+                sys.exit(1)
+    elif args.cores is None:
+        args.cores = 1
+
+    if args.drmaa_log_dir is not None:
+        if not os.path.isabs(args.drmaa_log_dir):
+            args.drmaa_log_dir = os.path.abspath(os.path.expanduser(args.drmaa_log_dir))
+
+    if args.runtime_profile:
+        import yappi
+        yappi.start()
+
+    if args.immediate_submit and not args.notemp:
+        print(
+            "Error: --immediate-submit has to be combined with --notemp, "
+            "because temp file handling is not supported in this mode.",
+            file=sys.stderr)
+        sys.exit(1)
+
+    if (args.conda_prefix or args.create_envs_only) and not args.use_conda:
+        print(
+            "Error: --use-conda must be set if --conda-prefix or "
+            "--create-envs-only is set.",
+            file=sys.stderr)
+        sys.exit(1)
+
+    if args.singularity_prefix and not args.use_singularity:
+        print("Error: --use_singularity must be set if --singularity-prefix "
+              "is set.", file=sys.stderr)
+        sys.exit(1)
+
+    if args.delete_all_output and args.delete_temp_output:
+        print("Error: --delete-all-output and --delete-temp-output are mutually exclusive.", file=sys.stderr)
+        sys.exit(1)
+
+    if args.gui is not None:
+        try:
+            import snakemake.gui as gui
+        except ImportError:
+            print("Error: GUI needs Flask to be installed. Install "
+                  "with easy_install or contact your administrator.",
+                  file=sys.stderr)
+            sys.exit(1)
+
+        _logging.getLogger("werkzeug").setLevel(_logging.ERROR)
+
+        _snakemake = partial(snakemake, os.path.abspath(args.snakefile))
+        gui.register(_snakemake, args)
+
+        if ":" in args.gui:
+            host, port = args.gui.split(":")
+        else:
+            port = args.gui
+            host = "127.0.0.1"
+
+        url = "http://{}:{}".format(host, port)
+        print("Listening on {}.".format(url), file=sys.stderr)
+
+        def open_browser():
+            try:
+                webbrowser.open(url)
+            except:
+                pass
+
+        print("Open this address in your browser to access the GUI.",
+              file=sys.stderr)
+        threading.Timer(0.5, open_browser).start()
+        success = True
+
+        try:
+            gui.app.run(debug=False, threaded=True, port=int(port), host=host)
+
+        except (KeyboardInterrupt, SystemExit):
+            # silently close
+            pass
+    else:
+        success = snakemake(args.snakefile,
+                            report=args.report,
+                            listrules=args.list,
+                            list_target_rules=args.list_target_rules,
+                            cores=args.cores,
+                            local_cores=args.local_cores,
+                            nodes=args.cores,
+                            resources=resources,
+                            config=config,
+                            configfile=args.configfile,
+                            config_args=args.config,
+                            workdir=args.directory,
+                            targets=args.target,
+                            dryrun=args.dryrun,
+                            printshellcmds=args.printshellcmds,
+                            printreason=args.reason,
+                            debug_dag=args.debug_dag,
+                            printdag=args.dag,
+                            printrulegraph=args.rulegraph,
+                            printd3dag=args.d3dag,
+                            touch=args.touch,
+                            forcetargets=args.force,
+                            forceall=args.forceall,
+                            forcerun=args.forcerun,
+                            prioritytargets=args.prioritize,
+                            until=args.until,
+                            omit_from=args.omit_from,
+                            stats=args.stats,
+                            nocolor=args.nocolor,
+                            quiet=args.quiet,
+                            keepgoing=args.keep_going,
+                            cluster=args.cluster,
+                            cluster_config=args.cluster_config,
+                            cluster_sync=args.cluster_sync,
+                            drmaa=args.drmaa,
+                            drmaa_log_dir=args.drmaa_log_dir,
+                            kubernetes=args.kubernetes,
+                            kubernetes_envvars=args.kubernetes_env,
+                            container_image=args.container_image,
+                            jobname=args.jobname,
+                            immediate_submit=args.immediate_submit,
+                            standalone=True,
+                            ignore_ambiguity=args.allow_ambiguity,
+                            lock=not args.nolock,
+                            unlock=args.unlock,
+                            cleanup_metadata=args.cleanup_metadata,
+                            cleanup_conda=args.cleanup_conda,
+                            cleanup_shadow=args.cleanup_shadow,
+                            force_incomplete=args.rerun_incomplete,
+                            ignore_incomplete=args.ignore_incomplete,
+                            list_version_changes=args.list_version_changes,
+                            list_code_changes=args.list_code_changes,
+                            list_input_changes=args.list_input_changes,
+                            list_params_changes=args.list_params_changes,
+                            list_untracked=args.list_untracked,
+                            summary=args.summary,
+                            detailed_summary=args.detailed_summary,
+                            archive=args.archive,
+                            delete_all_output=args.delete_all_output,
+                            delete_temp_output=args.delete_temp_output,
+                            print_compilation=args.print_compilation,
+                            verbose=args.verbose,
+                            debug=args.debug,
+                            jobscript=args.jobscript,
+                            notemp=args.notemp,
+                            keep_remote_local=args.keep_remote,
+                            greediness=args.greediness,
+                            no_hooks=args.no_hooks,
+                            overwrite_shellcmd=args.overwrite_shellcmd,
+                            latency_wait=args.latency_wait,
+                            wait_for_files=args.wait_for_files,
+                            keep_target_files=args.keep_target_files,
+                            allowed_rules=args.allowed_rules,
+                            max_jobs_per_second=args.max_jobs_per_second,
+                            max_status_checks_per_second=args.max_status_checks_per_second,
+                            restart_times=args.restart_times,
+                            attempt=args.attempt,
+                            force_use_threads=args.force_use_threads,
+                            use_conda=args.use_conda,
+                            conda_prefix=args.conda_prefix,
+                            list_conda_envs=args.list_conda_envs,
+                            use_singularity=args.use_singularity,
+                            singularity_prefix=args.singularity_prefix,
+                            shadow_prefix=args.shadow_prefix,
+                            singularity_args=args.singularity_args,
+                            create_envs_only=args.create_envs_only,
+                            mode=args.mode,
+                            wrapper_prefix=args.wrapper_prefix,
+                            default_remote_provider=args.default_remote_provider,
+                            default_remote_prefix=args.default_remote_prefix,
+                            assume_shared_fs=not args.no_shared_fs,
+                            cluster_status=args.cluster_status,
+                            log_handler=AnvioLogger.anvio_logger)
+
+    if args.runtime_profile:
+        with open(args.runtime_profile, "w") as out:
+            profile = yappi.get_func_stats()
+            profile.sort("totaltime")
+            profile.print_all(out=out)
+
+    sys.exit(0 if success else 1)
+
+snakemake.main = main
 
 import anvio
 import anvio.utils as u
@@ -30,6 +260,188 @@ __status__ = "Development"
 run = terminal.Run()
 progress = terminal.Progress()
 r = errors.remove_spaces
+
+class AnvioLogger(object):
+    quiet = False
+    run = terminal.Run()
+    progress = terminal.Progress()
+    last_msg_was_job_info = False
+    printreason = False
+
+    @classmethod
+    def anvio_logger(cls, msg):
+        """
+        log_handler (function):
+        redirect snakemake output to this custom log handler, a function
+        that takes a log message dictionary (see below) as its only argument (default None). The log
+        message dictionary for the log handler has to following entries:
+
+            :level:
+                the log level ("info", "error", "debug", "progress", "job_info")
+
+            :level="info", "error" or "debug":
+                :msg:
+                    the log message
+            :level="progress":
+                :done:
+                    number of already executed jobs
+
+                :total:
+                    number of total jobs
+
+            :level="job_info":
+                :input:
+                    list of input files of a job
+
+                :output:
+                    list of output files of a job
+
+                :log:
+                    path to log file of a job
+
+                :local:
+                    whether a job is executed locally (i.e. ignoring cluster)
+
+                :msg:
+                    the job message
+
+                :reason:
+                    the job reason
+
+                :priority:
+                    the job priority
+
+                :threads:
+                    the threads of the job
+        """
+        # print(msg)
+        level = msg['level']
+
+        timestamp = lambda: cls.run.info_single(terminal.get_date())
+        format_value = lambda value, omit=None, valueformat=str: valueformat(value) if value != omit else None
+        format_wildcards = lambda wildcards: ', '.join(['%s=%s' % (k, v) for k, v in wildcards.items()])
+        format_resources = lambda resources: ', '.join(['%s=%s' % (k, v) for k, v in resources.items() if not k.startswith('_')])
+
+        if level == 'job_info' and not cls.quiet:
+            timestamp()
+            if msg['msg'] is not None:
+                cls.run.info('Job %s' % msg['jobid'], msg['msg'], nl_before=nl_before, nl_after=0)
+                if cls.printreason:
+                    cls.run.info('Reason', msg['reason'], nl_before=0, nl_after=0)
+            else:
+                cls.run.warning('', header='%srule %s' % ('local' if msg['local'] else '', msg['name']))
+
+                for item in ['input', 'output', 'log']:
+                    value = format_value(msg[item], omit=[], valueformat=', '.join)
+                    if value is not None:
+                        cls.run.info(item, value)
+
+                for item in ['jobid', 'benchmark'] + ([] if not cls.printreason else ['reason']):
+                    value = format_value(msg[item], omit=None)
+                    if value is not None:
+                        cls.run.info(item, value)
+
+                wildcards = format_wildcards(msg["wildcards"])
+                if wildcards:
+                    cls.run.info('wildcards', wildcards)
+
+                for item, omit in zip("priority threads".split(), [0, 1]):
+                    value = format_value(msg[item], omit=omit)
+                    if value is not None:
+                        cls.run.info(item, value)
+
+                resources = format_resources(msg["resources"])
+                if resources:
+                    cls.run.info('resources', resources)
+
+            cls.last_msg_was_job_info = True
+
+        #if level == 'group_info' and not cls.quiet:
+        #    timestamp()
+        #    if not cls.last_msg_was_job_info:
+        #        cls.logger.info('')
+        #    cls.logger.info(
+        #        'group job {} (jobs in lexicogr. order):'.format(msg['groupid'])
+        #    )
+        #elif level == 'job_error':
+        #    timestamp()
+        #    cls.logger.error(indent('Error in rule {}:'.format(msg['name'])))
+        #    cls.logger.error(indent('    jobid: {}'.format(msg['jobid'])))
+        #    if msg['output']:
+        #        cls.logger.error(
+        #            indent('    output: {}'.format(', '.join(msg['output'])))
+        #        )
+        #    if msg['log']:
+        #        cls.logger.error(
+        #            indent(
+        #                '    log: {} (check log file(s) for error message)'.format(
+        #                    ', '.join(msg['log'])
+        #                )
+        #            )
+        #        )
+        #    if msg['conda_env']:
+        #        cls.logger.error(indent('    conda-env: {}'.format(msg['conda_env'])))
+        #    if msg['shellcmd']:
+        #        cls.logger.error(
+        #            indent(
+        #                '    shell:\n        {}\n        (one of the commands exited with non-zero exit code; note that snakemake uses bash strict mode!)'.format(
+        #                    msg['shellcmd']
+        #                )
+        #            )
+        #        )
+
+        #    for item in msg['aux'].items():
+        #        cls.logger.error(indent('    {}: {}'.format(*item)))
+        #    cls.logger.error('')
+        #elif level == 'group_error':
+        #    timestamp()
+        #    cls.logger.error('Error in group job {}:'.format(msg['groupid']))
+        #else:
+        #    if level == 'info' and not cls.quiet:
+        #        cls.logger.warning(msg['msg'])
+        #    if level == 'warning':
+        #        cls.logger.warning(msg['msg'])
+        #    elif level == 'error':
+        #        cls.logger.error(msg['msg'])
+        #    elif level == 'debug':
+        #        cls.logger.debug(msg['msg'])
+        #    elif level == 'resources_info' and not cls.quiet:
+        #        cls.logger.warning(msg['msg'])
+        #    elif level == 'run_info':
+        #        cls.logger.warning(msg['msg'])
+        #    elif level == 'progress' and not cls.quiet:
+        #        done = msg['done']
+        #        total = msg['total']
+        #        p = done / total
+        #        percent_fmt = ('{:.2%}' if p < 0.01 else '{:.0%}').format(p)
+        #        cls.logger.info(
+        #            '{} of {} steps ({}) done'.format(done, total, percent_fmt)
+        #        )
+        #    elif level == 'shellcmd':
+        #        if cls.printshellcmds:
+        #            cls.logger.warning(indent(msg['msg']))
+        #    elif level == 'job_finished' and not cls.quiet:
+        #        timestamp()
+        #        cls.logger.info('Finished job {}.'.format(msg['jobid']))
+        #        pass
+        #    elif level == 'rule_info':
+        #        cls.logger.info(msg['name'])
+        #        if msg['docstring']:
+        #            cls.logger.info('    ' + msg['docstring'])
+        #    elif level == 'd3dag':
+        #        print(json.dumps({'nodes': msg['nodes'], 'links': msg['edges']}))
+        #    elif level == 'dag_debug':
+        #        if cls.debug_dag:
+        #            job = msg['job']
+        #            cls.logger.warning(
+        #                '{status} job {name}\n\twildcards: {wc}'.format(
+        #                    status=msg['status'],
+        #                    name=job.rule.name,
+        #                    wc=format_wildcards(job.wildcards),
+        #                )
+        #            )
+
+        #    cls.last_msg_was_job_info = False
 
 
 class WorkflowSuperClass:
