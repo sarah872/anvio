@@ -306,12 +306,11 @@ class Run:
             progress.clear()
             self.write(message_line)
             progress.update(progress.msg)
-
         else:
             self.write(message_line)
 
 
-    def warning(self, message, header='WARNING', lc='red', raw=False, overwrite_verbose=False, nl_before=0, nl_after=0):
+    def warning(self, message, header='WARNING', lc='red', raw=False, overwrite_verbose=False, nl_before=0, nl_after=0, progress=None):
         if isinstance(message, str):
             message = remove_spaces(message)
 
@@ -323,7 +322,12 @@ class Run:
         else:
             message_line = c("%s\n\n%s" % (textwrap.fill(str(message), 80), '\n' * nl_after), lc)
 
-        self.write((header_line + message_line) if message else header_line, overwrite_verbose=overwrite_verbose)
+        if progress:
+            progress.clear()
+            self.write((header_line + message_line) if message else header_line, overwrite_verbose=overwrite_verbose)
+            progress.update(progress.msg)
+        else:
+            self.write((header_line + message_line) if message else header_line, overwrite_verbose=overwrite_verbose)
 
 
     def store_info_dict(self, destination, strip_prefix=None):

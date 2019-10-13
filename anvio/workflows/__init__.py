@@ -268,6 +268,10 @@ class AnvioLogger(object):
     last_msg_was_job_info = False
     printreason = False
 
+    first_log = True
+    total_jobs = 0
+    jobs_done = 0
+
     @classmethod
     def anvio_logger(cls, msg):
         """
@@ -314,134 +318,129 @@ class AnvioLogger(object):
                 :threads:
                     the threads of the job
         """
-        # print(msg)
+        if cls.first_log:
+            cls.progress.new('anvi-run-workflow')
+            cls.progress.update('Initializing')
+            cls.first_log = False
+
         level = msg['level']
 
-        timestamp = lambda: cls.run.info_single(terminal.get_date())
+        timestamp = lambda cls: cls.run.info_single(terminal.get_date(), nl_before=1, nl_after=0, progress=cls.progress)
         format_value = lambda value, omit=None, valueformat=str: valueformat(value) if value != omit else None
         format_wildcards = lambda wildcards: ', '.join(['%s=%s' % (k, v) for k, v in wildcards.items()])
         format_resources = lambda resources: ', '.join(['%s=%s' % (k, v) for k, v in resources.items() if not k.startswith('_')])
 
         if level == 'job_info' and not cls.quiet:
-            timestamp()
+            timestamp(cls)
             if msg['msg'] is not None:
-                cls.run.info('Job %s' % msg['jobid'], msg['msg'], nl_before=nl_before, nl_after=0)
+                cls.run.info('Job %s' % msg['jobid'], msg['msg'], nl_before=nl_before, nl_after=0, progress=cls.progress)
                 if cls.printreason:
-                    cls.run.info('Reason', msg['reason'], nl_before=0, nl_after=0)
+                    cls.run.info('Reason', msg['reason'], nl_before=0, nl_after=0, progress=cls.progress)
             else:
-                cls.run.warning('', header='%srule %s' % ('local' if msg['local'] else '', msg['name']))
+                cls.run.warning('', header='%srule %s' % ('local' if msg['local'] else '', msg['name']), progress=cls.progress)
 
                 for item in ['input', 'output', 'log']:
                     value = format_value(msg[item], omit=[], valueformat=', '.join)
                     if value is not None:
-                        cls.run.info(item, value)
+                        cls.run.info(item, value, progress=cls.progress)
 
                 for item in ['jobid', 'benchmark'] + ([] if not cls.printreason else ['reason']):
                     value = format_value(msg[item], omit=None)
                     if value is not None:
-                        cls.run.info(item, value)
+                        cls.run.info(item, value, progress=cls.progress)
 
                 wildcards = format_wildcards(msg["wildcards"])
                 if wildcards:
-                    cls.run.info('wildcards', wildcards)
+                    cls.run.info('wildcards', wildcards, progress=cls.progress)
 
                 for item, omit in zip("priority threads".split(), [0, 1]):
                     value = format_value(msg[item], omit=omit)
                     if value is not None:
-                        cls.run.info(item, value)
+                        cls.run.info(item, value, progress=cls.progress)
 
                 resources = format_resources(msg["resources"])
                 if resources:
-                    cls.run.info('resources', resources)
+                    cls.run.info('resources', resources, progress=cls.progress)
 
             cls.last_msg_was_job_info = True
 
-        #if level == 'group_info' and not cls.quiet:
-        #    timestamp()
-        #    if not cls.last_msg_was_job_info:
-        #        cls.logger.info('')
-        #    cls.logger.info(
-        #        'group job {} (jobs in lexicogr. order):'.format(msg['groupid'])
-        #    )
-        #elif level == 'job_error':
-        #    timestamp()
-        #    cls.logger.error(indent('Error in rule {}:'.format(msg['name'])))
-        #    cls.logger.error(indent('    jobid: {}'.format(msg['jobid'])))
-        #    if msg['output']:
-        #        cls.logger.error(
-        #            indent('    output: {}'.format(', '.join(msg['output'])))
-        #        )
-        #    if msg['log']:
-        #        cls.logger.error(
-        #            indent(
-        #                '    log: {} (check log file(s) for error message)'.format(
-        #                    ', '.join(msg['log'])
-        #                )
-        #            )
-        #        )
-        #    if msg['conda_env']:
-        #        cls.logger.error(indent('    conda-env: {}'.format(msg['conda_env'])))
-        #    if msg['shellcmd']:
-        #        cls.logger.error(
-        #            indent(
-        #                '    shell:\n        {}\n        (one of the commands exited with non-zero exit code; note that snakemake uses bash strict mode!)'.format(
-        #                    msg['shellcmd']
-        #                )
-        #            )
-        #        )
+        elif level == "group_info" and not cls.quiet:
+            timestamp(cls)
+            cls.run.info_single('group job %s (jobs in lexicogr. order):' % str(msg['groupid']), progress=cls.progress)
 
-        #    for item in msg['aux'].items():
-        #        cls.logger.error(indent('    {}: {}'.format(*item)))
-        #    cls.logger.error('')
-        #elif level == 'group_error':
-        #    timestamp()
-        #    cls.logger.error('Error in group job {}:'.format(msg['groupid']))
-        #else:
-        #    if level == 'info' and not cls.quiet:
-        #        cls.logger.warning(msg['msg'])
-        #    if level == 'warning':
-        #        cls.logger.warning(msg['msg'])
-        #    elif level == 'error':
-        #        cls.logger.error(msg['msg'])
-        #    elif level == 'debug':
-        #        cls.logger.debug(msg['msg'])
-        #    elif level == 'resources_info' and not cls.quiet:
-        #        cls.logger.warning(msg['msg'])
-        #    elif level == 'run_info':
-        #        cls.logger.warning(msg['msg'])
-        #    elif level == 'progress' and not cls.quiet:
-        #        done = msg['done']
-        #        total = msg['total']
-        #        p = done / total
-        #        percent_fmt = ('{:.2%}' if p < 0.01 else '{:.0%}').format(p)
-        #        cls.logger.info(
-        #            '{} of {} steps ({}) done'.format(done, total, percent_fmt)
-        #        )
-        #    elif level == 'shellcmd':
-        #        if cls.printshellcmds:
-        #            cls.logger.warning(indent(msg['msg']))
-        #    elif level == 'job_finished' and not cls.quiet:
-        #        timestamp()
-        #        cls.logger.info('Finished job {}.'.format(msg['jobid']))
-        #        pass
-        #    elif level == 'rule_info':
-        #        cls.logger.info(msg['name'])
-        #        if msg['docstring']:
-        #            cls.logger.info('    ' + msg['docstring'])
-        #    elif level == 'd3dag':
-        #        print(json.dumps({'nodes': msg['nodes'], 'links': msg['edges']}))
-        #    elif level == 'dag_debug':
-        #        if cls.debug_dag:
-        #            job = msg['job']
-        #            cls.logger.warning(
-        #                '{status} job {name}\n\twildcards: {wc}'.format(
-        #                    status=msg['status'],
-        #                    name=job.rule.name,
-        #                    wc=format_wildcards(job.wildcards),
-        #                )
-        #            )
+        elif level == "job_error":
+            timestamp(cls)
+            cls.run.warning('An error in rule %s (job ID %s) has occurred.' % (msg['name'], msg['jobid']), 
+                            header = 'AnviWorkflowError', progress=cls.progress)
+            if msg["output"]:
+                cls.run.info('output', ", ".join(msg["output"]), progress=cls.progress)
+            if msg["log"]:
+                cls.run.info('log', ", ".join(msg["log"]), progress=cls.progress)
+            if msg["conda_env"]:
+                cls.run.info('conda-env', msg["conda_env"])
+            for k, v in msg["aux"].items():
+                cls.run.info(k, v, progress=cls.progress)
 
-        #    cls.last_msg_was_job_info = False
+        elif level == "group_error":
+            print('never tested:')
+            timestamp(cls)
+            cls.run.info_single('Error in group job {}:' % str(msg['groupid']), progress=cls.progress)
+
+        else:
+            if level == "info" and not cls.quiet:
+                cls.run.info_single(msg["msg"], progress=cls.progress)
+            if level == "warning":
+                cls.run.warning(msg["msg"], header='warning', progress=cls.progress)
+            elif level == "error":
+                cls.run.warning(msg["msg"], header='AnviWorkflowError', raw=True, progress=cls.progress)
+            elif level == "debug":
+                if anvio.DEBUG:
+                    cls.run.warning(msg["msg"], header='debug', raw=True, progress=cls.progress)
+            elif level == "resources_info" and not cls.quiet:
+                cls.run.info_single(msg["msg"], progress=cls.progress)
+            elif level == "run_info":
+                # we needed the total number of items from this string (I know) to start proper
+                # progress object (I know)
+                cls.total_jobs = int(msg['msg'].strip().split()[-1])
+                cls.progress.end()
+                cls.progress.new('anvi-run-workflow', progress_total_items=cls.total_jobs)
+                cls.progress.update('%d of %d steps done' % (cls.jobs_done, cls.total_jobs))
+
+                from colored import fore, style
+                cls.progress.clear()
+                print(fore.YELLOW + msg['msg'] + style.RESET)
+                cls.progress.update(cls.progress.msg)
+            elif level == "progress" and not cls.quiet:
+                cls.total_jobs = msg['total']
+                cls.jobs_done = msg['done']
+
+                p = cls.jobs_done / cls.total_jobs
+                percent_fmt = ("{:.3%}" if p < 0.01 else "{:.0%}").format(p)
+                cls.progress.increment(increment_to=cls.jobs_done)
+                cls.progress.update('%d of %d steps done' % (cls.jobs_done, cls.total_jobs))
+            # elif level == "shellcmd":
+            #     if cls.printshellcmds:
+            #         cls.logger.warning(indent(msg["msg"]), progress=cls.progress)
+            # elif level == "job_finished" and not cls.quiet:
+            #     timestamp(cls)
+            #     cls.logger.info("Finished job {}.".format(msg["jobid"]))
+            #     pass
+            # elif level == "rule_info":
+            #     cls.logger.info(msg["name"])
+            #     if msg["docstring"]:
+            #         cls.logger.info("    " + msg["docstring"])
+            # elif level == "d3dag":
+            #     print(json.dumps({"nodes": msg["nodes"], "links": msg["edges"]}))
+            # elif level == "dag_debug":
+            #     if cls.debug_dag:
+            #         job = msg["job"]
+            #         cls.logger.warning(
+            #             "{status} job {name}\n\twildcards: {wc}".format(
+            #                 status=msg["status"],
+            #                 name=job.rule.name,
+            #                 wc=format_wildcards(job.wildcards)))
+
+            cls.last_msg_was_job_info = False
 
 
 class WorkflowSuperClass:
@@ -646,7 +645,7 @@ class WorkflowSuperClass:
 
         shell_programs_missing = [s for s in shell_programs_needed if not u.is_program_exists(s, dont_raise=dont_raise)]
 
-        run.warning(None, 'Shell programs for the workflow')
+        run.warning(None, 'Shell programs for the workflow', lc='yellow')
         run.info('Needed', ', '.join(shell_programs_needed))
         run.info('Missing', ', '.join(shell_programs_missing) or 'None', nl_after=1)
 
