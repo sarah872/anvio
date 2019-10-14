@@ -51,6 +51,7 @@
 '''
 import os
 import anvio
+import textwrap
 import argparse
 import pandas as pd
 import anvio.utils as u
@@ -971,6 +972,7 @@ rule anvi_merge:
                        "metagenomes. Feel free to contact us if you think " \
                        "that this is our fault. sincerely, Meren Lab" \
                        % wildcards.group
+            _message = textwrap.dedent(_message)
             # creating the expected output files for the rule
             create_fake_output_files(_message, output)
             shell("echo %s >> {log}" % _message)
@@ -988,6 +990,7 @@ rule anvi_merge:
                        still use anvi-interacite with the single profile \
                        database that is here: %s" \
                        % (wildcards.group, input.profiles[0])
+            _message = textwrap.dedent(_message)
             create_fake_output_files(_message, output)
             shell("echo %s >> {log}" % _message)
 
@@ -998,6 +1001,7 @@ rule anvi_merge:
             _message = "Only one sample had reads recruited to %s " \
                        "and hence merging could not occur." \
                        % wildcards.group
+            _message = textwrap.dedent(_message)
             create_fake_output_files(_message, output)
             shell("echo %s >> {log}" % _message)
 
