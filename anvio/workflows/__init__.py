@@ -34,6 +34,7 @@ run = terminal.Run()
 progress = terminal.Progress()
 r = errors.remove_spaces
 
+
 class AnvioSnakeMakeLogger(object):
     run = terminal.Run()
     progress = terminal.Progress()
@@ -166,9 +167,16 @@ class AnvioSnakeMakeLogger(object):
                     cls.run.info('resources', resources, progress=cls.progress, lc=cls.submitted_job_info_color_keys, mc=cls.submitted_job_info_color)
 
         elif level == 'group_info':
-            print('never tested')
-            timestamp()
-            cls.run.info_single('group job %s (jobs in lexicogr. order):' % str(msg['groupid']), progress=cls.progress)
+            try:
+                if anvio.DEBUG:
+                    print('never tested:')
+                timestamp()
+                cls.run.info_single('group job %s (jobs in lexicogr. order):' % str(msg['groupid']), progress=cls.progress)
+            except Exception as e:
+                print(e)
+                cls.run.warning("AnvioSnakeMakeLogger :: \'group_info\' log message has failed because it's never been tested. \
+                                 This is like finding a rare Pokémon. Please report the above error messages to the developers.",
+                                 header = 'DEVELOPER NOTE', progress=cls.progress, nl_after=0)
 
         elif level == 'job_error':
             timestamp()
@@ -184,10 +192,17 @@ class AnvioSnakeMakeLogger(object):
                 cls.run.info(k, v, progress=cls.progress, lc='red', mc='red')
 
         elif level == 'group_error':
-            print('never tested:')
-            timestamp()
-            cls.run.warning('A group error in job ID %s has occurred.' % (msg['jobid']), 
-                            header = 'GroupError', progress=cls.progress, nl_after=0)
+            try:
+                if anvio.DEBUG:
+                    print('never tested:')
+                timestamp()
+                cls.run.warning('A group error in job ID %s has occurred.' % (msg['jobid']), 
+                                header = 'GroupError', progress=cls.progress, nl_after=0)
+            except Exception as e:
+                print(e)
+                cls.run.warning("AnvioSnakeMakeLogger :: \'group_error\' log message has failed because it's never been tested. \
+                                 This is like finding a rare Pokémon. Please report the above error messages to the developers.",
+                                 header = 'DEVELOPER NOTE', progress=cls.progress, nl_after=0)
 
         else:
             if level == 'info':
@@ -239,15 +254,28 @@ class AnvioSnakeMakeLogger(object):
                         cls.run.info(item, value, progress=cls.progress, lc=cls.finished_job_info_color_keys, mc=cls.finished_job_info_color)
 
             elif level == 'rule_info':
-                print('never tested')
-                cls.run.info_single(msg['name'], progress=cls.progress)
-                if msg['docstring']:
-                    cls.run.info('docstring', msg['docstring'], progress=cls.progress)
+                try:
+                    if anvio.DEBUG:
+                        print('never tested:')
+                    cls.run.info_single(msg['name'], progress=cls.progress)
+                    if msg['docstring']:
+                        cls.run.info('docstring', msg['docstring'], progress=cls.progress)
+                except Exception as e:
+                    print(e)
+                    cls.run.warning("AnvioSnakeMakeLogger :: \'rule_info\' log message has failed because it's never been tested. \
+                                     This is like finding a rare Pokémon. Please report the above error messages to the developers.",
+                                     header = 'DEVELOPER NOTE', progress=cls.progress, nl_after=0)
             elif level == 'd3dag':
-                print('never tested')
-                print(fore.YELLOW + json.dumps({'nodes': msg['nodes'], 'links': msg['edges']}) + style.RESET)
-
-            cls.last_msg_was_job_info = False
+                try:
+                    if anvio.DEBUG:
+                        print('never tested:')
+                    print('never tested')
+                    print(fore.YELLOW + json.dumps({'nodes': msg['nodes'], 'links': msg['edges']}) + style.RESET)
+                except Exception as e:
+                    print(e)
+                    cls.run.warning("AnvioSnakeMakeLogger :: \'d3dag\' log message has failed because it's never been tested. \
+                                     This is like finding a rare Pokémon. Please report the above error messages to the developers.",
+                                     header = 'DEVELOPER NOTE', progress=cls.progress, nl_after=0)
 
 
 class WorkflowSuperClass:
