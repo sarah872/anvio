@@ -280,13 +280,18 @@ class PanSummarizer(PanSuperclass, SummarizerSuperClass):
         for gene_cluster_id in gene_clusters_functions_summary_dict:
             gene_cluster_function = gene_clusters_functions_summary_dict[gene_cluster_id]['gene_cluster_function']
             gene_cluster_function_accession = gene_clusters_functions_summary_dict[gene_cluster_id]['gene_cluster_function_accession']
+            # we want to use a function unique id that includes both the function name and
+            # accession (because sometimes functions have almost identical names, but different
+            # accession numbers, and that messes up downstream analysis).
             if gene_cluster_function:
+                function_unique_id = gene_cluster_function + '_' + gene_cluster_function_accession
                 if gene_cluster_function not in occurrence_of_functions_in_pangenome_dict:
-                    occurrence_of_functions_in_pangenome_dict[gene_cluster_function] = {}
-                    occurrence_of_functions_in_pangenome_dict[gene_cluster_function]['gene_clusters_ids'] = []
-                    occurrence_of_functions_in_pangenome_dict[gene_cluster_function]['occurrence'] = None
-                    occurrence_of_functions_in_pangenome_dict[gene_cluster_function]['accession'] = gene_cluster_function_accession
-                occurrence_of_functions_in_pangenome_dict[gene_cluster_function]['gene_clusters_ids'].append(gene_cluster_id)
+                    occurrence_of_functions_in_pangenome_dict[function_unique_id] = {}
+                    occurrence_of_functions_in_pangenome_dict[function_unique_id]['gene_clusters_ids'] = []
+                    occurrence_of_functions_in_pangenome_dict[function_unique_id]['occurrence'] = None
+                    occurrence_of_functions_in_pangenome_dict[function_unique_id]['function_name'] = gene_cluster_function
+                    occurrence_of_functions_in_pangenome_dict[function_unique_id]['accession'] = gene_cluster_function_accession
+                occurrence_of_functions_in_pangenome_dict[function_unique_id]['gene_clusters_ids'].append(gene_cluster_id)
 
         from anvio.dbops import PanDatabase
         pan_db = PanDatabase(self.pan_db_path)
@@ -298,16 +303,16 @@ class PanSummarizer(PanSuperclass, SummarizerSuperClass):
         self.progress.update('Merging presence/absence of gene clusters with the same function')
 
         D = {}
-        for gene_cluster_function in occurrence_of_functions_in_pangenome_dict:
+        for function_unique_id in occurrence_of_functions_in_pangenome_dict:
             v = None
-            for gene_cluster_id in occurrence_of_functions_in_pangenome_dict[gene_cluster_function]['gene_clusters_ids']:
+            for gene_cluster_id in occurrence_of_functions_in_pangenome_dict[function_unique_id]['gene_clusters_ids']:
                 if v is None:
                     v = gene_cluster_frequencies_dataframe.loc[gene_cluster_id, ].astype(int)
                 else:
                     v = v.add(gene_cluster_frequencies_dataframe.loc[gene_cluster_id, ])
-            D[gene_cluster_function] = {}
+            D[function_unique_id] = {}
             for genome in v.index:
-                D[gene_cluster_function][genome] = v[genome]
+                D[function_unique_id][genome] = v[genome]
 
         self.progress.end()
 
@@ -510,6 +515,7 @@ class PanSummarizer(PanSuperclass, SummarizerSuperClass):
 
             functional_occurrence_summary_dict[f] = {}
             functional_occurrence_summary_dict[f]["gene_clusters_ids"] = occurrence_of_functions_in_pangenome_dict[f]["gene_clusters_ids"]
+            functional_occurrence_summary_dict[f]["function_name"] = occurrence_of_functions_in_pangenome_dict[f]["function_name"]
             functional_occurrence_summary_dict[f]["function_accession"] = occurrence_of_functions_in_pangenome_dict[f]["accession"]
             for c in categories:
                 functional_occurrence_summary_dict[f]['p_' + c] = function_occurrence_table[c]['p']
