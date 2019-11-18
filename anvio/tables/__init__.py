@@ -208,17 +208,6 @@ genome_info_table_name       = 'genome_info'
 genome_info_table_structure  = ['genome_name', 'genome_hash', 'external_genome'] + essential_genome_info
 genome_info_table_types      = [    'str'    ,     'text'   ,     'numeric'    ] + ['numeric'] * len(essential_genome_info)
 
-<<<<<<< HEAD
-=======
-gene_info_table_name       = 'gene_info'
-gene_info_table_structure  = ['genome_name', 'gene_caller_id', 'aa_sequence', 'dna_sequence', 'partial', 'length' ]
-gene_info_table_types      = [    'str'    ,     'numeric'   ,    'text'    ,     'text'    , 'numeric', 'numeric']
-
-genome_gene_function_calls_table_name      = 'gene_function_calls'
-genome_gene_function_calls_table_structure = ['genome_name', ] + gene_function_calls_table_structure[:]
-genome_gene_function_calls_table_types     = [    'str'    , ] + gene_function_calls_table_types[:]
-
->>>>>>> master
 ####################################################################################################
 #
 #     TABLE DESCRIPTIONS FOR THE STRUCTURE DB
