@@ -96,13 +96,14 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
                                                         "--skip-SNV-profiling", "--profile-SCVs", "--description",
                                                         "--skip-hierarchical-clustering", "--distance", "--linkage", "--min-contig-length",
                                                         "--min-mean-coverage", "--min-coverage-for-variability", "--cluster-contigs",
-                                                        "--contigs-of-interest", "--queue-size", "--write-buffer-size", "--max-contig-length", "--max-coverage-depth"]
+                                                        "--contigs-of-interest", "--queue-size", "--write-buffer-size", "--max-contig-length",
+                                                        "--max-coverage-depth", "--ignore-orphans"]
         rule_acceptable_params_dict['annotate_contigs_database'] = []
         rule_acceptable_params_dict['merge_fastas_for_co_assembly'] = []
         rule_acceptable_params_dict['merge_fastqs_for_co_assembly'] = []
         rule_acceptable_params_dict['anvi_merge'] = ["--sample-name", "--description", "--skip-hierarchical-clustering",
                                                      "--enforce-hierarchical-clustering", "--distance", "--linkage",
-                                                     "--skip-concoct-binning", "--overwrite-output-destinations"]
+                                                     "--overwrite-output-destinations"]
         rule_acceptable_params_dict['import_percent_of_reads_mapped'] = ["run"]
         rule_acceptable_params_dict['krakenuniq'] = ["additional_params", "run", "--db", "--gzip-compressed"]
         rule_acceptable_params_dict['import_krakenuniq_taxonomy'] = ["--min-abundance"]
@@ -168,6 +169,7 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
         self.run_split = self.get_param_value_from_config(['anvi_split', 'run']) == True
         self.references_mode = self.get_param_value_from_config('references_mode', repress_default=True)
         self.fasta_txt_file = self.get_param_value_from_config('fasta_txt', repress_default=True)
+        self.profile_databases = {}
 
         self.references_for_removal_txt = self.get_param_value_from_config(['remove_short_reads_based_on_references',\
                                                                             'references_for_removal_txt'],\
@@ -191,15 +193,23 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
 
     def init_target_files(self):
         target_files = []
-        # We only merge things if there are multiple samples in the same group
-        merged_profiles = [os.path.join(self.dirs_dict["MERGE_DIR"], g, "PROFILE.db") \
-                            for g in self.group_names if self.group_sizes[g] > 1]
-        target_files.extend(merged_profiles)
+
+        # let's also set the PROFILE databases paths variable here:
+        for group in self.group_names:
+            # we need to use the single profile if the group is of size 1.
+            self.profile_databases[group] = os.path.join(self.dirs_dict["MERGE_DIR"], group, "PROFILE.db") if self.group_sizes[group] > 1 else \
+                                               os.path.join(self.dirs_dict["PROFILE_DIR"],
+                                                            group,
+                                                            self.samples_information.loc[self.samples_information['group']==group,'sample'].values[0],
+                                                            "PROFILE.db")
+
+        target_files.extend(list(self.profile_databases.values()))
 
         # for groups of size 1 we create a message file
         message_file_for_groups_of_size_1 = [os.path.join(self.dirs_dict["MERGE_DIR"], g, "README.txt") \
                             for g in self.group_names if self.group_sizes[g] == 1]
         target_files.extend(message_file_for_groups_of_size_1)
+
 
         contigs_annotated = [os.path.join(self.dirs_dict["CONTIGS_DIR"],\
                              g + "-annotate_contigs_database.done") for g in self.group_names]
@@ -343,9 +353,10 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
         fastq_file_names = list(self.samples_information['r1']) + list(self.samples_information['r2'])
         bad_fastq_names = [s for s in fastq_file_names if (not s.endswith('.fastq') and not s.endswith('.fastq.gz'))]
         if bad_fastq_names:
-            raise ConfigError("We require tha all fastq file names end with either '.fastq' \
-                               or '.fastq.gz'. Some or all of the file names in %s aren't formatted \
-                               accordingly. These are the file names we don't like: %s" % (self.samples_txt_file, ', '.join(bad_fastq_names)))
+            run.warning("We noticed some of your sequence files in '%s' do not end with either '.fastq' \
+                         or '.fastq.gz'. That's okay, but anvi'o decided it should warn you. Here are the first \
+                         5 such files that have unconventional file extensions: %s." \
+                         % (self.samples_txt_file, ', '.join(bad_fastq_names[:5])))
 
 
     def init_kraken(self):

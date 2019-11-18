@@ -97,6 +97,7 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
         self.collection_name = A('collection_name')
         self.gene_mode = A('gene_mode')
         self.inspect_split_name = A('split_name')
+        self.just_do_it = A('just_do_it')
         self.skip_hierarchical_clustering = A('skip_hierarchical_clustering')
 
 
@@ -112,10 +113,13 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
 
         if self.gene_mode:
             if self.collection_name is None or self.bin_id is None:
-                raise ConfigError("Gene view requires a collection and a bin to be specified. If you want to \
-                                    view all the genes in your profile database then you can use \
-                                    anvi-script-add-default-collection to create a default collection \
-                                    with all contigs.")
+                raise ConfigError("Gene view requires a collection and a bin to be specified. To SEE all collections and bins in\
+                                   your profile databse, you can use the program `anvi-show-collections-and-bins`. If you want to\
+                                   ADD a collection to your profile database, you can either use `anvi-import-collection` or\
+                                   `anvi-cluster-contigs` if appropriate, or you can go lazy and use the program\
+                                   `anvi-script-add-default-collection`, which would add a single collection that describes all contigs\
+                                   in your contigs database (in an ideal world you should use the last one only if you are working with\
+                                   a single genome).")
 
         if self.collection_name and (not self.gene_mode) and (self.bin_id or self.bin_ids_file_path) and self.mode != 'refine':
             raise ConfigError("There is something confusing here. On the one hand you provide a collection name, telling\
@@ -690,10 +694,15 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
         self.p_meta['available_item_orders'].append('alphabetical')
 
         if not self.inspect_split_name or self.inspect_split_name not in self.displayed_item_names_ordered:
-            self.inspect_split_name = alphabetical_order['data'][0]
-            self.run.warning("Either you forgot to provide split name to inspect or the split name\
-                             you have provided does not exist. So anvi'o decided to show you the split: \
-                             %s" % self.inspect_split_name)
+            if self.just_do_it:
+                self.inspect_split_name = alphabetical_order['data'][0]
+                self.run.warning("Since you have asked so kindly, anvi'o decided to start the interactive\
+                                  interface with this split: %s" % self.inspect_split_name)
+            else:
+                raise ConfigError("Either you forgot to provide a split name to `anvi-inspect` or the split name\
+                                   you have provided does not exist. If you don't care and want to start the\
+                                   interactive inteface with a random split from the profile database, please use\
+                                   the flag `--just-do-it`")
 
 
     def load_refine_mode(self):
@@ -744,7 +753,7 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
         self.p_meta['item_orders'] = item_orders
         self.p_meta['available_item_orders'] = list(self.item_orders.keys())
         self.p_meta['default_item_order'] = default_item_order
-        
+
         self.add_user_tree()
 
         if self.skip_hierarchical_clustering and not self.tree:
@@ -779,6 +788,7 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
             self.run.warning('HMMs for single-copy core genes were not run for this contigs database. So you will not\
                               see completion / redundancy estimates in the collection mode as additional layers. SAD.')
             completion_redundancy_available = False
+            self.hmm_access = None
         else:
             self.progress.new('Accessing HMM hits')
             self.progress.update('...')
@@ -865,7 +875,6 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
             if completion_redundancy_available:
                 # get completeness estimate
                 p_completion, p_redundancy, domain, domain_probabilities, info_text, _ = completeness.get_info_for_splits(set(self.collection[bin_id]))
-                domain_confidence = domain_probabilities[domain] if domain else 0.0
 
             for view in self.views:
                 self.views[view]['dict'][bin_id]['bin_name'] = bin_id
@@ -1049,7 +1058,10 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
         # the gene_level_coverage_stats_dict contains a mixture of data, some of which are not relevant to
         # our purpose of generating views for the interactive interface. here we explicitly list keys that
         # correspond to views we wish to generate:
-        views_of_interest = ['mean_coverage', 'detection', 'non_outlier_mean_coverage', 'non_outlier_coverage_std']
+        if self.inseq_stats:
+            views_of_interest = ['mean_coverage', 'insertions', 'insertions_normalized', 'mean_disruption', 'below_disruption']
+        else:
+            views_of_interest = ['mean_coverage', 'detection', 'non_outlier_mean_coverage', 'non_outlier_coverage_std']
 
         for view in views_of_interest:
             self.views[view] = {
@@ -1070,18 +1082,39 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
 
         self.init_split_sequences(self.p_meta['min_contig_length'], split_names_of_interest=split_names_of_interest)
 
+        gene_caller_ids_missing_in_gene_level_cov_stats_dict = set([])
+        gene_caller_sources_for_missing_gene_caller_ids_in_gene_level_cov_stats_dict = set([])
         for split_name in split_names_of_interest:
             genes_in_splits_entries = self.split_name_to_genes_in_splits_entry_ids[split_name]
 
             for genes_in_splits_entry in genes_in_splits_entries:
                 e = self.genes_in_splits[genes_in_splits_entry]
                 gene_callers_id = e['gene_callers_id']
+                gene_caller_source = self.genes_in_contigs_dict[gene_callers_id]['source']
+
+                if gene_callers_id not in self.gene_level_coverage_stats_dict:
+                    gene_caller_ids_missing_in_gene_level_cov_stats_dict.add(gene_callers_id)
+                    gene_caller_sources_for_missing_gene_caller_ids_in_gene_level_cov_stats_dict.add(gene_caller_source)
+                    continue
+
                 all_gene_callers_ids.append(gene_callers_id)
 
                 for view in views_of_interest:
                     self.views[view]['dict'][str(gene_callers_id)] = {}
                     for sample_name in self.gene_level_coverage_stats_dict[gene_callers_id]:
                         self.views[view]['dict'][str(gene_callers_id)][sample_name] = self.gene_level_coverage_stats_dict[gene_callers_id][sample_name][view]
+        if len(gene_caller_ids_missing_in_gene_level_cov_stats_dict):
+            self.run.warning("Anvi'o observed something weird while it was processing gene level coverage statistics.\
+                              Some of the gene calls stored in your contigs database (%d of them, precisely) did not\
+                              have any information in gene level coverage stats dictionary. It is likely they were added\
+                              to the contigs database *after* these gene level coverage stats were computed and stored.\
+                              One way to address this is to remove the database file for gene coverage stats and re-run\
+                              this step. Another way to do it is the good ol' way of ignoring these warnings as you usually\
+                              do. If you do the latter, you will probably be fine. But we wanted to keep you in the loop\
+                              just in case you are not fine and the code does not realize that yet. The sources for gene\
+                              calls that will not be included in your gene view include these ones: '%s'." % \
+                                    (len(gene_caller_ids_missing_in_gene_level_cov_stats_dict),
+                                     ', '.join(gene_caller_sources_for_missing_gene_caller_ids_in_gene_level_cov_stats_dict)))
 
         # this is a bit tricky. we already populated the collections dict above, but it was to find out
         # genes caller ids of interest. we are now resetting the collections dict, and populating it
@@ -1115,7 +1148,7 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
 
         self.p_meta['default_item_order'] = 'mean_coverage'
         self.default_view = 'mean_coverage'
-        self.title = "Genes in '%s'" % self.bin_id
+        self.title = "Genes in '%s' [mode: %s]" % (self.bin_id, 'IN-Seq/Tn-Seq' if self.inseq_stats else 'Standard')
 
         # FIXME: When we are in gene-mode mode, our item names are no longer split names, hence the
         # following dictionaries are useless. Until we find a better way to fill them up with
@@ -1437,14 +1470,14 @@ class StructureInteractive(VariabilitySuper):
         try:
             self.full_variability.filter_data(criterion="corresponding_gene_call",
                                               subset_filter=self.available_genes)
-        except self.EndProcess as e:
+        except self.EndProcess:
             raise ConfigError("This is really sad. There is no overlap between the gene IDs in your\
                                structure database and the gene IDs in your variability table.")
 
         try:
             self.full_variability.filter_data(criterion="departure_from_consensus",
                                               min_filter=self.min_departure_from_consensus)
-        except self.EndProcess as e:
+        except self.EndProcess:
             raise ConfigError("This is really sad. There are no entries in your variability table\
                                with a departure_from_consensus less than {}. Try setting\
                                --min-departure-from-consensus to 0.".format(self.min_departure_from_consensus))
@@ -1798,7 +1831,7 @@ class StructureInteractive(VariabilitySuper):
            inheriting this method.
         """
         # use class-wide attributes if no parameters are passed
-        if available_gene_caller_ids is "" and available_genes_path is "":
+        if available_gene_caller_ids == "" and available_genes_path == "":
             available_gene_caller_ids = self.available_gene_caller_ids
             available_genes_path = self.available_genes_path
 
@@ -1872,7 +1905,7 @@ class StructureInteractive(VariabilitySuper):
            method.
         """
         # use class-wide attributes if no parameters are passed
-        if available_samples_path is "":
+        if available_samples_path == "":
             available_samples_path = self.available_samples_path
 
         # method inherited from VariabilitySuper
@@ -2229,15 +2262,25 @@ class ContigsInteractive():
 
         self.tables['header'] = [c['project_name'] for c in self.contigs_stats.values()]
 
+        basic_stats = []
+
         ##
         ##  Table for basic stats
         ##
         self.progress.new('Generating stats tables')
+
         self.progress.update('Basic stats ...')
-        basic_stats = []
         basic_stats.append(['Total Length'] + [c['total_length'] for c in self.contigs_stats.values()])
         basic_stats.append(['Num Contigs'] + [c['num_contigs'] for c in self.contigs_stats.values()])
-        basic_stats.append(['Num Genes (' + constants.default_gene_caller + ')'] + [c['num_genes'] for c in self.contigs_stats.values()])
+
+        self.progress.update('Number of contigs ...')
+        contig_lengths_for_all = [c['contig_lengths'] for c in self.contigs_stats.values()]
+        X = lambda n: [len([count for count in contig_lengths_for_one if count >= n]) for contig_lengths_for_one in contig_lengths_for_all]
+        basic_stats.append(['Num Contigs > 5 kb'] + X(5000))
+        basic_stats.append(['Num Contigs > 10 kb'] + X(10000))
+        basic_stats.append(['Num Contigs > 20 kb'] + X(20000))
+        basic_stats.append(['Num Contigs > 50 kb'] + X(50000)) 
+        basic_stats.append(['Num Contigs > 100 kb'] + X(100000))
 
         self.progress.update('Contig lengths ...')
         contig_lengths_for_all = [c['contig_lengths'] for c in self.contigs_stats.values()]
@@ -2245,6 +2288,10 @@ class ContigsInteractive():
         MIN_L = lambda: [min(lengths) for lengths in contig_lengths_for_all]
         basic_stats.append(['Longest Contig'] + MAX_L())
         basic_stats.append(['Shortest Contig'] + MIN_L())
+
+        self.progress.update('Number of genes ...')
+        contig_lengths_for_all = [c['contig_lengths'] for c in self.contigs_stats.values()]
+        basic_stats.append(['Num Genes (' + constants.default_gene_caller + ')'] + [c['num_genes'] for c in self.contigs_stats.values()])
 
         self.progress.update('N/L values ...')
         n_values = [c['n_values'] for c in self.contigs_stats.values()]

@@ -166,6 +166,8 @@ class GenomeStorage():
         where_clause = """genome_name IN (%s)""" % ",".join('"' + item + '"' for item in self.genome_names)
         self.genomes_info = self.db.get_some_rows_from_table_as_dict(t.genome_info_table_name, where_clause)
 
+        self.progress.end()
+
         self.gene_info = {}
         self.progress.update('Loading genes info for %s genomes...' % len(self.genomes_info))
         
@@ -427,7 +429,8 @@ class GenomeStorage():
             raise ConfigError("Functions are not available in this genome storage ('%s'). " % self.storage_path)
 
         if self.skip_init_functions:
-            raise ConfigError("Functions are not initialized for this genome storage ('%s'). " % self.storage_path)
+            raise ConfigError("Initialization of functions were skipped when the GenomeStorage\
+                              class was called for '%s'. " % self.storage_path)
 
         self.is_known_genome(genome_name)
         self.is_known_gene_call(genome_name, gene_callers_id)

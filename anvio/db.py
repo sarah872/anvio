@@ -6,6 +6,7 @@
 
 import os
 import time
+import math
 import sqlite3
 import pandas as pd
 
@@ -26,12 +27,20 @@ __maintainer__ = "A. Murat Eren"
 __email__ = "a.murat.eren@gmail.com"
 __status__ = "Development"
 
-run = terminal.Run()
+
+def get_list_in_chunks(input_list, num_items_in_each_chunk=1000):
+    """Yield smaller bits of a list"""
+    for index in range(0, len(input_list), num_items_in_each_chunk):
+        yield input_list[index:index + num_items_in_each_chunk]
+
 
 class DB:
-    def __init__(self, db_path, client_version, new_database=False, ignore_version=False):
+    def __init__(self, db_path, client_version, new_database=False, ignore_version=False, run=terminal.Run(), progress=terminal.Progress()):
         self.db_path = db_path
         self.version = None
+
+        self.run = run
+        self.progress = progress
 
         if new_database:
             filesnpaths.is_output_file_writable(db_path)
@@ -81,7 +90,7 @@ class DB:
         while(check_counter < check_limit and filesnpaths.is_file_exists(journal_path, dont_raise=True)):
             if check_counter == 0:
                 # print only once
-                run.info_single("It seems the database at '%s' currently used by another proccess\
+                self.run.info_single("It seems the database at '%s' currently used by another proccess\
                                for writing operations. Anvi'o refuses to work with this database to avoid corrupting it. \
                                If you think this is a mistake, you may stop this process and delete the lock file at '%s' after making sure \
                                no other active process using it for writing. In case this program is ran by automatic workflow manager like snakemake \
@@ -146,12 +155,12 @@ class DB:
         self._exec_many('''INSERT INTO %s VALUES(%s)''' % (table_name, ','.join(['?'] * len(data[0]))), data)
 
 
-    def get_max_value_in_column(self, table_name, column_name, value_if_empty=None):
+    def get_max_value_in_column(self, table_name, column_name, value_if_empty=None, return_min_instead=False):
         """
         value_if_empty, default = None:
             If not None and table has no entries, value returned is value_if_empty.
         """
-        response = self._exec("""SELECT MAX(%s) FROM %s""" % (column_name, table_name))
+        response = self._exec("""SELECT %s(%s) FROM %s""" % ('MIN' if return_min_instead else 'MAX', column_name, table_name))
         rows = response.fetchall()
 
         val = rows[0][0]
@@ -171,7 +180,6 @@ class DB:
         """if try_as_type_int, value is attempted to be converted to integer. If it fails, no harm no foul."""
         response = self._exec("""SELECT value FROM self WHERE key='%s'""" % key)
         rows = response.fetchall()
-
         if not rows:
             raise ConfigError("A value for '%s' does not seem to be set in table 'self'." % key)
 
@@ -209,7 +217,19 @@ class DB:
 
 
     def _exec_many(self, sql_query, values):
-        return self.cursor.executemany(sql_query, values)
+        chunk_counter = 0
+        for chunk in get_list_in_chunks(values):
+            if anvio.DEBUG:
+                self.progress.reset()
+                self.run.info_single("Adding the chunk %d with %d entries of %d total is being added to the db with\
+                                      the SQL command '%s'." \
+                                    % (chunk_counter, len(chunk), len(values), sql_query), nl_before=1)
+
+            self.cursor.executemany(sql_query, chunk)
+
+            chunk_counter += 1
+
+        return True
 
 
     def insert(self, table_name, values=()):
@@ -318,6 +338,14 @@ class DB:
         return [t[0] for t in response.fetchall()]
 
 
+    def get_some_columns_from_table(self, table, comma_separated_column_names, unique=False, where_clause=None):
+        if where_clause:
+            response = self._exec('''SELECT %s %s FROM %s WHERE %s''' % ('DISTINCT' if unique else '', comma_separated_column_names, table, where_clause))
+        else:
+            response = self._exec('''SELECT %s %s FROM %s''' % ('DISTINCT' if unique else '', comma_separated_column_names, table))
+        return response.fetchall()
+
+
     def get_table_column_types(self, table_name):
         response = self._exec('PRAGMA TABLE_INFO(%s)' % table_name)
         return [t[2] for t in response.fetchall()]
@@ -332,11 +360,14 @@ class DB:
         return self.get_all_rows_from_table(table_name)
 
 
-    def get_table_as_dict(self, table_name, table_structure=None, string_the_key=False, columns_of_interest=None, keys_of_interest=None, omit_parent_column=False, error_if_no_data=True):
+    def get_table_as_dict(self, table_name, table_structure=None, string_the_key=False, columns_of_interest=None, keys_of_interest=None, omit_parent_column=False, error_if_no_data=True, log_norm_numeric_values=False):
         if not table_structure:
             table_structure = self.get_table_structure(table_name)
 
         columns_to_return = list(range(0, len(table_structure)))
+
+        if columns_of_interest and not isinstance(columns_of_interest, type([])):
+            raise ConfigError("The parameter `columns_of_interest` must be of type <list>.")
 
         if omit_parent_column:
             if '__parent__' in table_structure:
@@ -355,23 +386,87 @@ class DB:
             else:
                 return {}
 
-        if keys_of_interest:
-            keys_of_interest = set(keys_of_interest)
+        rows = self.get_all_rows_from_table(table_name)
+
+        #-----8<-----8<-----8<-----8<-----8<-----8<-----8<-----8<-----8<-----8<-----8<-----8<-----8<-----8<-----8<-----
+        #
+        # SAD TABLES BEGIN
+        #
+        # FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+        # this is one of the most critical design mistakes that remain in anvi'o. we set `entry_id` values
+        # in table classes depending on the data that will be entered into the database. this is how it goes:
+        # anvi'o learns the highest entry id in a table (to which it is about to enter some data), for each db
+        # entry assigns a new `entry_id`, enters the data. it is all good when there is a single process doing it.
+        # but when there are multiple processes running in parallel, sometimes race conditions occur: two processes
+        # learn the max entry id about the same time, and when they finally enter the data to the db, some entries
+        # end up not being unique. this is a toughie because sometimes entry ids are used to connect distinct 
+        # information from different tables, so they must be known before the data goes into the database, etc.
+        # when these race conditions occur, anvi'o gives an error telling the user kindly that they are fucked. but in
+        # some cases it is possible to recover from that (THE CODE BELOW TRIES TO DO THAT) by reassigning all ids on the
+        # fly to the resulting data dictionary (i.e., not paying atention to entry ids in the database and basically using
+        # new ones to avoid key information to not be overwritten due to the lack of unique entry ids which become keys for
+        # the data dictionary). in other cases there are no ways to fix it, such as for HMM tables.. The ACTUAL SOLUTION to\
+        # this is to remove `entry_id` columns from every table in anvi'o, and using SQLite indexes as entry ids.
+        if table_name not in tables.tables_without_unique_entry_ids:
+            unique_keys = set([r[0] for r in rows])
+            if len(unique_keys) != len(rows):
+                if anvio.FIX_SAD_TABLES:
+                    if 'hmm' in table_name:
+                        raise ConfigError("You asked anvi'o to fix sad tables, but the sad table you're trying to fix happens to\
+                                           be related to HMM operations in anvi'o, where supposedly unique entries tie together\
+                                           multiple tables. Long story short, solving this while ensuring everything is done right\
+                                           is quite difficult and there is no reason to take any risks. The best you can do is to\
+                                           remove all HMMs from your contigs database, and re-run them with a single instance of\
+                                           `anvi-run-hmms` command (you can use multiple threads, but you shouldn't send multiple\
+                                           `anvi-run-hmms` to your cluster to be run on the same contigs database in parallel --\
+                                           that's what led you to this point at the first place). Apologies for this bioinformatics\
+                                           poo poo :( It is all on us.")
+
+                    self.run.info_single("You have sad tables. You have used `--fix-sad-tables` flag. Now anvi'o will try to fix them...", mc="red")
+
+                    # here we will update the rows data with a small memory fingerprint:
+                    entry_id_counter = 0
+                    for i in range(0, len(rows)):
+                        row = rows[i]
+                        rows[i] = [entry_id_counter] + list(row[1:])
+                        entry_id_counter += 1
+
+                    # now we will remove the previous table, and enter the new data with up-to-date entry ids
+                    table_structure = self.get_table_structure(table_name)
+
+                    # delete the table content *gulp*
+                    self._exec('''DELETE FROM %s''' % table_name)
+
+                    # enter corrected data
+                    self._exec_many('''INSERT INTO %s VALUES (%s)''' % (table_name, ','.join(['?'] * len(table_structure))), rows)
+
+                    self.run.info_single("If you are seeing this line, it means anvi'o managed to fix those sad tables. No more sad!\
+                                     But please make double sure that nothing looks funny in your results. If you start getting\
+                                     errors and you wish to contact us for that, please don't forget to mention that you did try\
+                                     to fix your sad tables.", mc="green")
+                else:
+                    raise ConfigError("This is one of the core functions of anvi'o you never want to hear from, but there seems\
+                                       to be something wrong with the table '%s' that you are trying to read from. While there\
+                                       are %d items in this table, there are only %d unique keys, which means some of them are\
+                                       going to be overwritten when this function creates a final dictionary of data to return.\
+                                       This often happens when the user runs multiple processes in parallel that tries to write\
+                                       to the same table. For instance, running a separate instance of `anvi-run-hmms` on the same\
+                                       contigs database with different HMM profiles. Anvi'o is very sad for not handling this\
+                                       properly, but such database tables need fixin' before things can continue :( If you would\
+                                       like anvi'o to try to fix this, please run the same command you just run with the flag\
+                                       `--fix-sad-tables`. If you do that it is a great idea to backup your original database\
+                                       and then very carefully check the results to make sure things do not look funny." \
+                                                    % (table_name, len(rows), len(unique_keys)))
+
+        #
+        # SAD TABLES END
+        #
+        #----->8----->8----->8----->8----->8----->8----->8----->8----->8----->8----->8----->8----->8----->8----->8-----
 
         results_dict = {}
 
-        rows = self.get_all_rows_from_table(table_name)
-
-        unique_keys = set([r[0] for r in rows])
-        if len(unique_keys) != len(rows):
-            raise ConfigError("This is one of the core functions of anvi'o you never want to hear from, but there seems\
-                               to be something wrong with the table '%s' that you are trying to read from. While there\
-                               are %d items in this table, there are only %d unique keys, which means some of them are\
-                               going to be overwritten when this function creates a final dictionary of data to return.\
-                               This may be a programmer error when the data was being inserted into the database, but\
-                               needs fixin' before we can continue. If you are a user, please get in touch with anvi'o\
-                               developers about this error. If you are a programmer, you probably did something\
-                               wrong :(" % (table_name, len(rows), len(unique_keys)))
+        if keys_of_interest:
+            keys_of_interest = set(keys_of_interest)
 
         for row in rows:
             entry = {}
@@ -386,7 +481,12 @@ class DB:
                     continue
 
             for i in columns_to_return[1:]:
-                entry[table_structure[i]] = row[i]
+                value = row[i]
+                if log_norm_numeric_values:
+                    if type(value) == float or type(value) == int:
+                        entry[table_structure[i]] = math.log10(value + 1)
+                else:
+                    entry[table_structure[i]] = value
 
             if string_the_key:
                 results_dict[str(row[0])] = entry
@@ -396,10 +496,7 @@ class DB:
         return results_dict
 
 
-    def get_table_as_dataframe(self, table_name,
-                               table_structure  = None, columns_of_interest = None,
-                               keys_of_interest = None, omit_parent_column  = False,
-                               error_if_no_data = True, where_clause        = None):
+    def get_table_as_dataframe(self, table_name, table_structure  = None, columns_of_interest = None, keys_of_interest = None, omit_parent_column  = False, error_if_no_data = True, where_clause = None):
         """get_table_as_dict() uses the first column as the key in the resulting
            dictionary. For pandas DataFrames there are two reasonable design
            approaches. The first mimics this approach and uses the first column as

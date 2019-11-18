@@ -20,6 +20,8 @@ __license__ = "GPL 3.0"
 __version__ = anvio.__version__
 __maintainer__ = "A. Murat Eren"
 __email__ = "a.murat.eren@gmail.com"
+__description__ = ("A simple script to generate a TAB-delimited file gene caller IDs and their "
+                   "HMM hits for a given HMM source.")
 
 
 run = terminal.Run()
@@ -49,15 +51,14 @@ def main(args):
     else:
         run.info('Num HMM hits', len(hmm_results_dict))
 
-    header = ['gene_callers_id', 'source', 'gene_name', 'gene_hmm_id']
+    header = ['unique_entry_id', 'gene_callers_id', 'source', 'gene_name', 'gene_hmm_id']
     utils.store_dict_as_TAB_delimited_file(hmm_results_dict, output_file_path, headers=header)
 
     run.info('Output', output_file_path)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='A simple script to generate a TAB-delimited file gene caller IDs and their HMM hits\
-                                                  for a given HMM source.')
+    parser = argparse.ArgumentParser(description=__description__)
 
     groupB = parser.add_argument_group("INPUT: ANVI'O CONTIGS DB")
     groupB.add_argument(*anvio.A('contigs-db'), **anvio.K('contigs-db'))

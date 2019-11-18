@@ -35,7 +35,7 @@ pp = terminal.pretty_print
 
 
 class TablesForHMMHits(Table):
-    def __init__(self, db_path, num_threads_to_use=1, run=run, progress=progress):
+    def __init__(self, db_path, num_threads_to_use=1, run=run, progress=progress, initializing_for_deletion=False):
         self.num_threads_to_use = num_threads_to_use
         self.db_path = db_path
 
@@ -45,18 +45,26 @@ class TablesForHMMHits(Table):
 
         Table.__init__(self, self.db_path, anvio.__contigs__version__, run, progress)
 
-        if not self.genes_are_called:
-            raise ConfigError("It seems the contigs database '%s' was created with '--skip-gene-calling' flag.\
-                                Nothing to do here :/" % (self.db_path))
-
         self.init_gene_calls_dict()
 
         if not len(self.gene_calls_dict):
-            raise ConfigError("Tables that should contain gene calls are empty. Which probably means the gene\
-                                caller reported no genes for your contigs.")
+            if self.genes_are_called:
+                self.run.warning("Tables in this contigs database that should contain gene calls are empty despite the fact that\
+                                  you didn't skip the gene calling step while generating this contigs database. This probably means\
+                                  that the gene caller did not find any genes among contigs. This is OK for now. But might explode\
+                                  later. If it does explode and you decide to let us know about that problem, please remember to mention\
+                                  this warning. By the way, this warning probably has been seen by like only 2 people on the planet. Who\
+                                  works with contigs with no gene calls? A better implementation of anvi'o will unite researchers who\
+                                  study weird stuff.")
+            else:
+                self.run.warning("It seems you have skipped gene calling step while generating your contigs database, and you have no\
+                                  genes calls in tables that should contain gene calls. Anvi'o will let you go with this since some HMM\
+                                  sources only operate on DNA sequences, and at this point it doesn't know which HMMs you wish to run.\
+                                  If the lack of genes causes a problem, you will get another error message later probably :/")
 
-        self.set_next_available_id(t.hmm_hits_table_name)
-        self.set_next_available_id(t.hmm_hits_splits_table_name)
+        if not initializing_for_deletion:
+            self.set_next_available_id(t.hmm_hits_table_name)
+            self.set_next_available_id(t.hmm_hits_splits_table_name)
 
 
     def populate_search_tables(self, sources={}):
@@ -75,8 +83,14 @@ class TablesForHMMHits(Table):
         # here we will go through targets and populate target_files_dict based on what we find among them.
         targets = set([s['target'] for s in list(sources.values())])
         for target in targets:
-
             alphabet, context = utils.anvio_hmm_target_term_to_alphabet_and_context(target)
+
+            if not self.genes_are_called and context != "CONTIG":
+                raise ConfigError("You are in trouble. The gene calling was skipped for this contigs database, yet anvi'o asked to run an\
+                                   HMM profile that wishes to operate on %s context using the %s alphabet. It is not OK. You still could run\
+                                   HMM profiles that does not require gene calls to be present (such as the HMM profile that identifies Ribosomal\
+                                   RNAs in contigs, but for that you would have to explicitly ask for it by using the additional parameter\
+                                   '--installed-hmm-profile Ribosomal_RNAs')." % (context, alphabet))
 
             self.run.info('Target found', '%s:%s' % (alphabet, context))
 
@@ -147,7 +161,7 @@ class TablesForHMMHits(Table):
                     self.run.warning("You just called an HMM profile that runs on contigs and not genes. Because this HMM\
                                       operation is not directly working with gene calls anvi'o already knows about, the resulting\
                                       hits will need to be added as 'new gene calls' into the contigs database. So far so good.\
-                                      But blecause we are in the contigs realm rater than genes realm, it is likely that\
+                                      But because we are in the contigs realm rater than genes realm, it is likely that\
                                       resulting hits will not correspond to open reading frames that are supposed to be\
                                       translated (such as ribosomal RNAs), because otherwise you would be working with genes\
                                       instad of defining CONTIGS as your context in that HMM profile you just used unless you\
@@ -191,9 +205,12 @@ class TablesForHMMHits(Table):
            slution is to add additional gene calls for a given set of HMM hits to keep
            them in the database."""
 
+        if not len(search_results_dict):
+            return search_results_dict
+
         # we will first learn the next available id in the gene callers table
         database = db.DB(self.db_path, utils.get_required_version_for_db(self.db_path))
-        next_id = database.get_max_value_in_column('genes_in_contigs', 'gene_callers_id') + 1
+        next_id = database.get_max_value_in_column('genes_in_contigs', 'gene_callers_id', value_if_empty=0) + 1
         database.disconnect()
 
         additional_gene_calls = {}
@@ -333,5 +350,4 @@ class TablesForHMMHits(Table):
                         db_entries_for_splits.append(db_entry)
 
         return db_entries_for_splits
-
 
