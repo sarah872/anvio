@@ -407,7 +407,7 @@ class DB:
         # new ones to avoid key information to not be overwritten due to the lack of unique entry ids which become keys for
         # the data dictionary). in other cases there are no ways to fix it, such as for HMM tables.. The ACTUAL SOLUTION to\
         # this is to remove `entry_id` columns from every table in anvi'o, and using SQLite indexes as entry ids.
-        if table_name not in tables.tables_without_unique_entry_ids:
+        if table_name not in []:
             unique_keys = set([r[0] for r in rows])
             if len(unique_keys) != len(rows):
                 if anvio.FIX_SAD_TABLES:

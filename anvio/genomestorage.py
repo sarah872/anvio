@@ -167,6 +167,7 @@ class GenomeStorage():
         self.genomes_info = self.db.get_some_rows_from_table_as_dict(t.genome_info_table_name, where_clause)
 
         self.progress.end()
+        self.progress.new('Loading genomes')
 
         self.gene_info = {}
         self.progress.update('Loading genes info for %s genomes...' % len(self.genomes_info))

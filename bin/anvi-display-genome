@@ -1,0 +1,53 @@
+#!/usr/bin/env python
+# -*- coding: utf-8
+""""""
+
+import sys
+import argparse
+
+import anvio
+import anvio.utils as utils
+import anvio.terminal as terminal
+import anvio.genomeviewer as genomeviewer
+from anvio.bottleroutes import BottleApplication
+
+
+from anvio.errors import ConfigError, FilesNPathsError, DictIOError, HDF5Error
+
+run = terminal.Run()
+progress = terminal.Progress()
+
+if __name__ == '__main__':
+    # setup the command line user interface
+    parser = argparse.ArgumentParser(description="Start an anvi'o server to display genome viewer")
+
+    groupA = parser.add_argument_group('INPUT FILES', "Input files from the pangenome analysis.")
+    groupP = parser.add_argument_group("SERVER CONFIGURATION", "For power users.")
+
+    groupA.add_argument(*anvio.A('pan-db'), **anvio.K('pan-db'))
+    groupA.add_argument(*anvio.A('genomes-storage'), **anvio.K('genomes-storage', {'required': False}))
+    groupA.add_argument(*anvio.A('gene-caller-id'), **anvio.K('gene-caller-id'))
+    groupP.add_argument(*anvio.A('ip-address'), **anvio.K('ip-address'))
+    groupP.add_argument(*anvio.A('port-number'), **anvio.K('port-number'))
+
+    args = anvio.get_args(parser)
+
+    try:
+        d = genomeviewer.GenomeViewer(args)
+        args.port_number = utils.get_port_num(args.port_number, args.ip_address, run=run)
+
+        app = BottleApplication(d)
+        app.run_application(args.ip_address, args.port_number)
+
+    except ConfigError as e:
+        print(e)
+        sys.exit(-1)
+    except FilesNPathsError as e:
+        print(e)
+        sys.exit(-2)
+    except DictIOError as e:
+        print(e)
+        sys.exit(-3)
+    except HDF5Error as e:
+        print(e)
+        sys.exit(-4)

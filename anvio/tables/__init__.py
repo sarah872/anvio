@@ -242,4 +242,4 @@ residue_info_sources = {"DSSP":        {"structure": ['codon_order_in_gene' , 'a
 #
 ####################################################################################################
 
-tables_without_unique_entry_ids = [genome_gene_function_calls_table_name]
+tables_without_unique_entry_ids = []

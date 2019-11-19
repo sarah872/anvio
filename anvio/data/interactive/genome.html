@@ -1,0 +1,24 @@
+<html>
+    <head>
+        <title>Genome Display</title>
+        <script type="text/javascript" src="js/utils.js"></script>
+        <script type="text/javascript" src="lib/jquery/dist/jquery.min.js"></script>
+    </head>
+
+    <body>
+        <!-- <svg>
+            <g id="viewport">
+
+            </g>
+        </svg> -->
+
+        <canvas id="canvas" width="800" height="600"></canvas>
+        <script type="text/javascript" src="js/genome.js"></script>
+        <script type="text/javascript">
+            const genomeViewer = new GenomeViewer({
+                'canvas': document.getElementById('canvas'),
+            });
+            genomeViewer.draw();
+        </script>
+    </body>
+</html>
