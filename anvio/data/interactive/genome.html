@@ -3,6 +3,23 @@
         <title>Genome Display</title>
         <script type="text/javascript" src="js/utils.js"></script>
         <script type="text/javascript" src="lib/jquery/dist/jquery.min.js"></script>
+        <style>
+            * { 
+                margin: 0; 
+                padding: 0;
+            }
+
+            body, html { 
+                height:100%; 
+                width: 100%;
+            }
+            
+            #canvas {
+                position: absolute;
+                height: 100%;
+                width: 100%;
+            }
+        </style>
     </head>
 
     <body>
@@ -12,13 +29,49 @@
             </g>
         </svg> -->
 
-        <canvas id="canvas" width="800" height="600"></canvas>
+        <canvas id="canvas"></canvas>
         <script type="text/javascript" src="js/genome.js"></script>
         <script type="text/javascript">
+            let data = JSON.parse('{"1347": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1269821, "stop": 1270322, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1346": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1269416, "stop": 1269740, "direction": "f", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1345": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1268956, "stop": 1269310, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1344": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1268529, "stop": 1268973, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1343": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1267782, "stop": 1268496, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1342": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1264722, "stop": 1267701, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1341": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1264550, "stop": 1264694, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1340": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1263304, "stop": 1264606, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1339": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1261842, "stop": 1263108, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1338": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1261514, "stop": 1261793, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1337": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1260731, "stop": 1261514, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1336": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1258675, "stop": 1260511, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1335": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1256588, "stop": 1258358, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1334": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1256056, "stop": 1256362, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}, "1333": {"contig": "Enterococcus_faecalis_6240_contig_00003_chromosome", "start": 1254844, "stop": 1256053, "direction": "r", "partial": 0, "source": "prodigal", "version": "v2.60", "genome_name": "E_faecalis_6240"}}')
+
             const genomeViewer = new GenomeViewer({
                 'canvas': document.getElementById('canvas'),
             });
-            genomeViewer.draw();
+
+            let x = 0;
+            for (let i=0; i < 200; i++) {
+                let start = 0;
+                genomeViewer.tracks[0].contigs[0].genes.push(
+                    new Gene({
+                      'viewer': genomeViewer,
+                      'gene_callers_id': i, 
+                      'start': x, 
+                      'stop': x+10 + Math.random() * 90}));
+                x+= 100;
+            }
+
+            x = 0;
+            for (let i=0; i < 20; i++) {
+                let start = 0;
+                genomeViewer.tracks[1].contigs[0].genes.push(
+                    new Gene({
+                      'viewer': genomeViewer,
+                      'gene_callers_id': i, 
+                      'start': x, 
+                      'stop': x+10 + Math.random() * 90}));
+                x+= 100;
+            }
+            for (var gene_callers_id of Object.keys(data)) {
+                let gene = data[gene_callers_id];
+                genomeViewer.tracks[2].contigs[0].genes.push(
+                    new Gene({
+                      'viewer': genomeViewer,
+                      'gene_callers_id': gene_callers_id, 
+                      'start': gene['start'],
+                      'stop': gene['stop']}));
+            }
+            genomeViewer.handleResize();
+            genomeViewer.center();
         </script>
     </body>
 </html>

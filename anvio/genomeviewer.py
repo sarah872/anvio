@@ -4,6 +4,7 @@
 
 import os
 import sys
+import json
 
 import anvio
 import anvio.db as db
@@ -32,28 +33,20 @@ class GenomeViewer():
         pan_db = db.DB(self.pan_db_path, anvio.__pan__version__)
         genome_storage = db.DB(self.genomes_storage_path, anvio.__genomes_storage_version__)
 
-        self.gene_to_split = dict()
-        self.split_to_genes = dict()
-        self.gene_info = dict()
+        
+        target_gene = genome_storage.get_some_rows_from_table_as_dict(
+            'genes_in_contigs', 'genome_name LIKE "%s" and gene_callers_id LIKE "%s"' % (self.genome_name, str(self.gene_callers_id)))
+        target_gene = target_gene[self.gene_callers_id]
 
-        self.gene_to_cluster = dict()
-        self.clusters = dict()
+        window = 10000
+        neighbors = genome_storage.get_some_rows_from_table_as_dict(
+            'genes_in_contigs', 'genome_name LIKE "%s" and \
+                                 start >= %d and \
+                                 stop <= %d' % (self.genome_name, 
+                                               target_gene['start'] - window,
+                                               target_gene['stop'] + window))
 
-        for row in pan_db.get_all_rows_from_table('gene_clusters'):
-            entry_id, gene_caller_id, gene_cluster_id, genome_name, alignment_summary = row
-
-            gene = (genome_name, gene_caller_id)
-
-            self.gene_to_cluster[gene] = gene_cluster_id
-
-            if gene_cluster_id not in self.clusters:
-                self.clusters[gene_cluster_id] = set([])
-
-            self.clusters[gene_cluster_id].add(gene)
-
-        print(self.gene_info)
-
-
+        print(json.dumps(neighbors))
 
 
 
