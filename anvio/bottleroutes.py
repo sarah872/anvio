@@ -174,6 +174,7 @@ class BottleApplication(Bottle):
         self.route('/data/search_items',                       callback=self.search_items_by_name, method='POST')
         self.route('/data/get_taxonomy',                       callback=self.get_taxonomy, method='POST')
         self.route('/data/get_gene_info/<gene_callers_id>',    callback=self.get_gene_info)
+        self.route('/data/get_neighbors',                      callback=self.get_neighbors)
 
 
     def run_application(self, ip, port):
@@ -1356,4 +1357,8 @@ class BottleApplication(Bottle):
             return json.dumps({'status': 1, 'message': message})
 
         return json.dumps(output)
+
+
+    def get_neighbors(self):
+        return json.dumps(self.interactive.get_neighbors())
 
