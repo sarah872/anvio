@@ -28,12 +28,6 @@
     </head>
 
     <body>
-        <!-- <svg>
-            <g id="viewport">
-
-            </g>
-        </svg> -->
-
         <canvas id="canvas"></canvas>
         <script type="text/javascript" src="js/genome.js"></script>
         <script type="text/javascript">
@@ -44,7 +38,21 @@
 
             fetch('/data/get_neighbors').then((response) => {
                 response.json().then((data) => {
-                    data.forEach((gene) => {
+                    for (const genome_name in data.contigs) {
+                        let track = genomeViewer.getTrack(genome_name);
+
+                        for (const contig_name in data.contigs[genome_name]) {
+                            let contig_info = data.contigs[genome_name][contig_name];
+                            
+                            let contig = new Contig(genomeViewer);
+                            contig.name = contig_name;
+                            contig.length = contig_info.length;
+                            track.contigs.push(contig);
+                        }
+                    }
+
+
+                    data.genes.forEach((gene) => {
                         let genome_name = gene['genome_name'];
 
                         let track = genomeViewer.getTrack(genome_name);
@@ -55,7 +63,30 @@
                                   'start': gene['start'],
                                   'stop': gene['stop'],
                                   'direction': gene['direction']}));
-                    }); 
+                    });
+
+                    for (const cluster_name in data.clusters) {
+                        let gene_start_pos = [];
+                        data.clusters[cluster_name].forEach((cluster) => {
+                            const {genome_name, gene_callers_id} = cluster;
+                            
+                            let track = genomeViewer.getTrack(genome_name);
+                            let gene = track.contigs[0].getGene(gene_callers_id);
+                            gene_start_pos.push(gene.start);
+                        });
+                        let min = Math.min(...gene_start_pos);
+
+                        data.clusters[cluster_name].forEach((cluster) => {
+                            const {genome_name, gene_callers_id} = cluster;
+                            
+                            let track = genomeViewer.getTrack(genome_name);
+                            let gene = track.contigs[0].getGene(gene_callers_id);
+
+                            track.contigs[0].offsetX = gene.start - min;
+                            console.log(track.contigs[0].offsetX);
+                        });
+                    }
+
                     genomeViewer.handleResize();
                     genomeViewer.center();
                 });
