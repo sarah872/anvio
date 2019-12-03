@@ -4,13 +4,14 @@ function Gene(props) {
     this.start = props.start;
     this.stop = props.stop;
     this.direction = props.direction;
+    this.gene_callers_id = props.gene_callers_id;
 }
 
-Gene.prototype.draw = function(context, offsetY) {
+Gene.prototype.draw = function(context, offsetY, offsetX) {
     let ctx = this.viewer.context;
-    let start = this.start * this.viewer.xscale;
-    let stop = this.stop * this.viewer.xscale;
-    let width = stop - start;
+    
+    let start = offsetX * this.viewer.xscale;
+    let width = (this.stop - this.start) * this.viewer.xscale;
 
     let triangleWidth = (width >= 10) ? 10 : width;
 
@@ -64,7 +65,7 @@ function GenomeViewer(options) {
     this.mouseDown = false;
     this.backupTransformationMatrix = {};
     this.panStart = {'x': 0, 'y': 0};
-    this.xscale = 1;
+    this.xscale = 0.001;
 }
 
 GenomeViewer.prototype.getTrack = function(name) {
@@ -127,7 +128,7 @@ GenomeViewer.prototype.handleWheel = function(event) {
 GenomeViewer.prototype.center = function(event) {
     let range = this.getRange();
 
-    this.xscale = this.width / Math.abs(range.max - range.min);
+    this.xscale = 1; //this.width / Math.abs(range.max - range.min);
 
     this.context.setTransform(1,0,0,1,
                               -1 * range.min * this.xscale,
@@ -143,13 +144,10 @@ GenomeViewer.prototype.getRange = function() {
 
 GenomeViewer.prototype.clear = function() {
     let ctx = this.context;
-    // I have lots of transforms right now
     ctx.save();
     ctx.setTransform(1,0,0,1,0,0);
-    // Will always clear the right space
-    ctx.clearRect(0,0, this.width,this.height);
+    ctx.clearRect(0,0, this.width, this.height);
     ctx.restore();
-    // Still have my old transforms
 }
 
 GenomeViewer.prototype.draw = function() {
@@ -162,7 +160,7 @@ GenomeViewer.prototype.draw = function() {
 
 function GenomeTrack(viewer) {
     this.viewer = viewer;
-    this.contigs = [new Contig(this.viewer)];
+    this.contigs = [];
 }
 
 GenomeTrack.prototype.getRange = function() {
@@ -195,6 +193,7 @@ GenomeTrack.prototype.draw = function(context, offset) {
 
 function Contig(viewer) {
     this.viewer = viewer;
+    this.offsetX = 0;
     this.genes = [];
 }
 
@@ -219,8 +218,22 @@ Contig.prototype.getRange = function() {
     return {'min': min, 'max': max};
 }
 
-Contig.prototype.draw = function(context, offset) {
+Contig.prototype.getGene = function(gene_callers_id) {
+    let gene = this.genes.find((gene) => {
+        return (gene.gene_callers_id == gene_callers_id);
+    });
+    return gene;
+}
+
+Contig.prototype.draw = function(context, offsetY) {
+    let range = this.getRange();
+
+    context.beginPath();
+    context.fillStyle = "#DDD";
+    context.rect(this.offsetX * this.viewer.xscale, offsetY + 3, this.length * this.viewer.xscale, 10);
+    context.fill();
+
     this.genes.forEach((gene) => { 
-        gene.draw(context, offset); 
+        gene.draw(context, offsetY, range.min - this.offsetX);
     });
 }
