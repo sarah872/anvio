@@ -33,7 +33,6 @@ class GenomeViewer():
     def get_neighbors(self):
         pan_db = db.DB(self.pan_db_path, anvio.__pan__version__)
         genome_storage = db.DB(self.genomes_storage_path, anvio.__genomes_storage_version__)
-        
 
         gene_cluster_row = pan_db.get_some_rows_from_table_as_dict(
             'gene_clusters', 'genome_name LIKE "%s" and gene_caller_id LIKE "%s"' % (self.genome_name, str(self.gene_callers_id)))
@@ -43,15 +42,32 @@ class GenomeViewer():
         genes_in_cluster = pan_db.get_some_rows_from_table_as_dict(
             'gene_clusters', 'gene_cluster_id LIKE "%s"' % (gene_cluster_id))
 
-        results = []
+        genes = []
+        clusters = {}
+        contigs = {}
 
-        for entry_id in genes_in_cluster:
-            gene_callers_id = genes_in_cluster[entry_id]['gene_caller_id']
-            genome_name = genes_in_cluster[entry_id]['genome_name']
+        for entry_id, entry in genes_in_cluster.items():
+            if not entry['gene_cluster_id'] in clusters:
+                clusters[entry['gene_cluster_id']] = []
+
+            gene_callers_id = entry['gene_caller_id']
+            genome_name = entry['genome_name']
+            clusters[entry['gene_cluster_id']].append({'genome_name': genome_name, 
+                                                       'gene_callers_id': gene_callers_id})
+
 
             target_gene = genome_storage.get_some_rows_from_table_as_dict(
                 'genes_in_contigs', 'genome_name LIKE "%s" and gene_callers_id LIKE "%s"' % (genome_name, str(gene_callers_id)))
             target_gene = target_gene[gene_callers_id]
+
+            contig_info = genome_storage.get_some_rows_from_table_as_dict(
+                'contigs_basic_info', 'genome_name LIKE "%s" and contig LIKE "%s"' % (genome_name, target_gene['contig']))
+
+            if not genome_name in contigs:
+                contigs[genome_name] = {}
+
+            if not target_gene['contig'] in contigs[genome_name]:
+                contigs[genome_name][target_gene['contig']] = contig_info[target_gene['contig']]
 
             window = 10000
             neighbors = genome_storage.get_some_rows_from_table_as_dict(
@@ -61,10 +77,12 @@ class GenomeViewer():
                                                    target_gene['start'] - window,
                                                    target_gene['stop'] + window))
 
-            results.extend(neighbors.values())
+            for gene_callers_id in neighbors:
+                neighbors[gene_callers_id]['gene_callers_id'] = gene_callers_id
+            
+            genes.extend(neighbors.values())
 
-
-        return results
+        return {'genes': genes, 'clusters': clusters, 'contigs': contigs}
 
 
 
