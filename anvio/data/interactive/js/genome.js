@@ -65,7 +65,7 @@ function GenomeViewer(options) {
     this.mouseDown = false;
     this.backupTransformationMatrix = {};
     this.panStart = {'x': 0, 'y': 0};
-    this.xscale = 0.001;
+    this.xscale = 0.1;
 }
 
 GenomeViewer.prototype.getTrack = function(name) {
@@ -117,22 +117,21 @@ GenomeViewer.prototype.handleResize = function(event) {
 GenomeViewer.prototype.handleWheel = function(event) {
     let matrix = this.context.getTransform();
     if (event.deltaY < 0) {
-        this.xscale = this.xscale * 0.98;
+        this.xscale = this.xscale + 0.01;
     } else {
-        this.xscale = this.xscale * 1.02;
+        this.xscale = this.xscale - 0.01;
     }
     this.draw();
 }
 
 
-GenomeViewer.prototype.center = function(event) {
+GenomeViewer.prototype.center = function(position) {
     let range = this.getRange();
 
-    this.xscale = 1; //this.width / Math.abs(range.max - range.min);
+    this.xscale = 0.25;
 
-    this.context.setTransform(1,0,0,1,
-                              -1 * range.min * this.xscale,
-                              0);
+    this.context.setTransform(1,0,0,1, -1 * position * this.xscale, 0);
+    console.log(position);
     this.draw();
 }
 
@@ -215,7 +214,7 @@ Contig.prototype.getRange = function() {
         }
     });
 
-    return {'min': min, 'max': max};
+    return {'min': min, 'max': max + this.offsetX};
 }
 
 Contig.prototype.getGene = function(gene_callers_id) {
@@ -230,7 +229,10 @@ Contig.prototype.draw = function(context, offsetY) {
 
     context.beginPath();
     context.fillStyle = "#DDD";
-    context.rect(this.offsetX * this.viewer.xscale, offsetY + 3, this.length * this.viewer.xscale, 10);
+    context.rect(this.offsetX * this.viewer.xscale, 
+                    offsetY + 3, 
+                    this.length * this.viewer.xscale, 
+                    10);
     context.fill();
 
     this.genes.forEach((gene) => { 
