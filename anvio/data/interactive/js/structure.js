@@ -19,7 +19,6 @@ var sample_groups_backup = {};
 var current_state_name;
 
 
-
 $(document).ready(function() {
     toastr.options = {
         "closeButton": true,
@@ -64,7 +63,7 @@ $(document).ready(function() {
     }, false );
 
     $('#gene_callers_id_list').on('change', function(ev) {
-        $.when({}).then(load_protein).then(() => {
+        $.when({}).then(load_protein).then(load_gene_function_info).then(() => {
             create_ui();
             load_sample_group_widget($('#sample_groups_list').val());
         });
@@ -88,7 +87,7 @@ $(document).ready(function() {
                 $('#gene_callers_id_list').append(`<option id=${gene_callers_id}>${gene_callers_id}</option>`);
             });
 
-            $.when({}).then(load_protein).then(() => {
+            $.when({}).then(load_protein).then(load_gene_function_info).then(() => {
                 let default_engine = available_engines[0];
                 available_engines.forEach(function(engine) {
                     $('#engine_list').append(`<input type="radio" name="engine" onclick="$.when({}).then(create_ui).then(() => { fetch_and_draw_variability(); });" value="${engine}" id="engine_${engine}" ${engine == default_engine ? 'checked="checked"' : ''}><label for="engine_${engine}">${engine}</label>`);
@@ -109,7 +108,7 @@ function load_sample_group_widget(category, trigger_create_ngl_views=true) {
     $('#sample_groups').empty();
     $('#sample_groups').attr('created-for-category', category);
 
-    tableHtml = '<table class="table table-condensed"><tr><td>Groups</td><td>Samples</td></tr>';
+    tableHtml = '<table class="table table-condensed"><tr><td><label class="col-md-4 settings-label">Groups</label></td><td><label class="col-md-4 settings-label">Samples</label></td></tr>';
 
     let counter=0;
     for (let group in sample_groups[category]) {
@@ -130,14 +129,14 @@ function load_sample_group_widget(category, trigger_create_ngl_views=true) {
         tableHtml += `
             <tr>
                 <td>
-                    <input class="form-check-input" 
+                    <input class="form-check-input"
                         onclick="create_ngl_views();"
                         checkbox-for="group"
                         id="${category}_${group}"
                         type="checkbox" 
                         data-category="${category}"
                         data-group="${group}"
-                        value="${group}" 
+                        value="${group}"
                         ${ group_checked ? `checked="checked"` : `` }>
                     <label class="form-check-label" for="${category}_${group}">${group}</label>
                 </td>
@@ -182,7 +181,7 @@ function apply_orientation_matrix_to_all_stages(orientationMatrix) {
 }
 
 async function create_ngl_views(fetch_variability = true) {
-    // if fetch_variability, fetch_and_draw_variability is called, otherwise draw_variability i called
+    // if fetch_variability, fetch_and_draw_variability is called, otherwise draw_variability is called
     let selected_groups = $('[checkbox-for="group"]:checked');
     if (selected_groups.length > MAX_NGL_WIDGETS) {
         $('#maximum_ngl_widgets_error').show();
@@ -231,7 +230,7 @@ async function create_single_ngl_view(group, num_rows, num_columns) {
              </div>
              <div id="ngl_${group}" class="ngl-inner">
 
-             </div> 
+             </div>
         </div>`);
 
     var stage = new NGL.Stage(`ngl_${group}`);
@@ -242,186 +241,91 @@ async function create_single_ngl_view(group, num_rows, num_columns) {
     });
 
     stage.loadFile(stringBlob, { ext: "pdb" }).then((component) => {
-            if( component.type !== "structure" ) return;
+        if( component.type !== "structure" ) return;
 
-            if ($('#show_surface').is(':checked')) {
-                component.addRepresentation("surface", {
-                    surfaceType: "av",
-                    colorScheme: $('#surface_type').val(),
-                    smooth: 3,
-                    probeRadius: 1.4,
-                    scaleFactor: 3.0,
-                    opacity: parseFloat($('#surface_opacity').val()),
-                    lowResolution: false,
-                });
+        if ($('#show_surface').is(':checked')) {
+            surface_rep_params = {
+                surfaceType: "av",
+                smooth: 3,
+                opaqueBack: false,
+                side: 'double',
+                probeRadius: parseFloat($('#surface_probe_radius').val()),
+                scaleFactor: 3.0,
+                opacity: parseFloat($('#surface_opacity').val()),
+                lowResolution: false,
             }
-
-            // FIXME does not work as expected. When loading structure residue info create
-            // manual labels
-            if ($('#show_residue_labels').is(':checked')) {
-                component.addRepresentation("label", {
-                sele: ".CA",
-                color: "element",
-                labelType: "format",
-                labelFormat: "%(resname)s"
-                });
+            if ($('#surface_type').val() == 'plain') {
+                surface_rep_params['color'] = $('#color_plain').attr('color')
+            } else {
+                surface_rep_params['colorScheme'] = $('#surface_type').val()
             }
+            component.addRepresentation("surface", surface_rep_params);
+        }
 
-            if ($('#show_backbone').is(':checked')) {
-                component.addRepresentation($('#backbone_type').val(), {
+        // FIXME does not work as expected. When loading structure residue info create
+        // manual labels
+        if ($('#show_residue_labels').is(':checked')) {
+            component.addRepresentation("label", {
+            sele: ".CA",
+            color: "element",
+            labelType: "format",
+            labelFormat: "%(resname)s"
+            });
+        }
+
+        if ($('#show_backbone').is(':checked')) {
+            backbone_type = $('#backbone_type').val()
+
+            if (backbone_type == 'rocket+loop') {
+                // custom
+                component.addRepresentation('rocket', {
                     color: $('#backbone_color').attr('color'),
+                    scale: 1.8,
+                });
+                component.addRepresentation('tube', {
+                    color: $('#backbone_color').attr('color'),
+                    sele: 'not helix',
+                    scale: 2.0,
+                    aspectRatio: 1.0,
+                });
+            } else if (backbone_type == 'custom') {
+                // custom
+                null
+            } else {
+                component.addRepresentation(backbone_type, {
+                    color: $('#backbone_color').attr('color'),
+                    scale: 1.5,
                     aspectRatio: 3.0,
-                    scale: 1.5
                 });
             }
+        }
 
-            if ($('#show_ballstick').is(':checked') && $('#show_ballstick_when').val() == 'always'){
+        if ($('#show_ballstick').is(':checked')) {
+            if ($('#show_ballstick_when').val() == 'always') {
                 component.addRepresentation("ball+stick", {
                     sele: "sidechainAttached"
                 });
             }
+        }
 
-            if (cached_orientation_matrices.hasOwnProperty($('#gene_callers_id_list').val())) {
-                stage.viewerControls.orient(cached_orientation_matrices[$('#gene_callers_id_list').val()]);
-            } else {
-                component.autoView();
-            }
+        if (cached_orientation_matrices.hasOwnProperty($('#gene_callers_id_list').val())) {
+            stage.viewerControls.orient(cached_orientation_matrices[$('#gene_callers_id_list').val()]);
+        } else {
+            component.autoView();
+        }
 
-            // prevent default tooltip
-            stage.mouseControls.remove("hoverPick");
+        // prevent default tooltip
+        stage.mouseControls.remove("hoverPick");
 
-            // add custom tooltip
-            var previous_hovered_residue = null;
-            stage.signals.hovered.add(function (pickingProxy) {
-                let tooltip = document.getElementById('ngl-tooltip');
+        // add custom tooltip
+        var previous_hovered_residue = null;
+        stage.signals.hovered.add(function (pickingProxy) {
+            let tooltip = document.getElementById('ngl-tooltip');
 
-                if (pickingProxy && pickingProxy.atom) {
-                    if (pickingProxy.atom.resno != previous_hovered_residue && $('#show_ballstick_when').val() != 'always') {
-                        // remove ball+stick if hovered residue changed or 
-                        if (pickingProxy.atom.resno != previous_hovered_residue) {
-                            stage.compList[0].reprList.slice(0).forEach((rep) => {
-                                if (rep.name == 'ball+stick') {
-                                    rep.dispose();
-                                }
-                            });
-                        }
-                    }
-
-                    let residue = pickingProxy.atom.resno;
-                    let mp = pickingProxy.mouse.position;
-
-                    if ($('#show_ballstick').is(':checked') && $('#show_ballstick_when').val() != 'always') {
-                        if ($('#show_ballstick_when').val() == 'hovered residue') {
-                            var selection = "(" + residue + ")" + " and sidechainAttached";
-                        }
-                        else if ($('#show_ballstick_when').val() == 'hovered residue + contacts') {
-                            var selection = "(" + residue_info[residue]['contact_numbers'].split(',').join(', ') + ")" + " and sidechainAttached";
-                        }
-                        if ($('#show_ballstick_when').val() == 'hovered residue + variant contacts') {
-                            let contacts = residue_info[residue]['contact_numbers'].split(',');
-                            let variant_contacts = [];
-                            for (i in contacts) {
-                                if (contacts[i] == String(residue)) {
-                                    variant_contacts.push(contacts[i]);
-                                } 
-                                else if (variability[group].hasOwnProperty(parseInt(contacts[i]))) {
-                                    variant_contacts.push(contacts[i]);
-                                }
-                            }
-                            var selection = "(" + variant_contacts.join(', ') + ")" + " and sidechainAttached";
-                        }
-                        stage.compList[0].addRepresentation("ball+stick", {
-                            hydrogenBond: true,
-                            sele: selection
-                        });
-                    }
-
-                    // Reference data is always available
-                    var tooltip_HTML_title = `<h5>Reference info</h5>`
-                    var tooltip_HTML_body = `
-                        <tr><td>Residue</td><td>${residue_info[residue]['amino_acid']} (${residue_info[residue]['codon']})</td></tr>
-                        <tr><td>Residue No.</td><td>${residue_info[residue]['codon_number']}</td></tr>
-                        <tr><td>Secondary Structure</td><td>${residue_info[residue]['sec_struct']}</td></tr>
-                        <tr><td>Solvent Accessibility</td><td>${residue_info[residue]['rel_solvent_acc'].toFixed(2)}</td></tr>
-                        <tr><td>(Phi, Psi)</td><td>(${residue_info[residue]['phi'].toFixed(1)}, ${residue_info[residue]['psi'].toFixed(1)})</td></tr>
-                        <tr><td>Contacts With</td><td>${residue_info[residue]['contact_numbers']}</td></tr>
-                        `
-
-                    // Variant data is available if a variant exists at hovered residue
-                    if (variability[group].hasOwnProperty(residue)) {
-                        var tooltip_HTML_variant_title = `<h5>Variant info</h5>`
-                        var tooltip_HTML_variant_body = `
-                            <tr><td>Mean Dfc</td><td>${variability[group][residue]['departure_from_consensus'].toFixed(2)}</td></tr>
-                            <tr><td>Prevalence</td><td>${variability[group][residue]['occurrence']} of ${parseInt(Math.round(variability[group][residue]['occurrence'] / variability[group][residue]['prevalence']))} samples</td></tr>
-                            <tr><td>Site Coverage</td><td>${variability[group][residue]['coverage'].toFixed(2)}</td></tr>
-                            ${variability[group][residue].hasOwnProperty('mean_normalized_coverage') ? `<tr><td>Site Coverage / Gene Coverage</td><td>${variability[group][residue]['mean_normalized_coverage'].toFixed(2)}</td></tr>` : ``}
-                            <tr><td>Mean Entropy</td><td>${variability[group][residue]['entropy'].toFixed(2)}</td></tr>
-                            `
-                        // add engine-specific data
-                        if ($('[name=engine]:checked').val() == 'AA') {
-                            // append to body
-                            tooltip_HTML_variant_body += `<tr><td>Mean BLOSUM90</td><td>${variability[group][residue]['BLOSUM90'].toFixed(1)}</td></tr>`
-                        } else {
-                            // append to body
-                            tooltip_HTML_variant_body += `<tr><td>Synonymity</td><td>${variability[group][residue]['synonymity'].toFixed(2)}</td></tr>`
-                        }
-
-                        var tooltip_HTML_variant_freqs_title = `<h5>Variant frequencies</h5>`
-                        if ($('[name=engine]:checked').val() == 'AA') {
-                            var tooltip_HTML_variant_freqs_body = `
-                                <tr><td>${variability[group][residue]['0_item']}</td><td>${variability[group][residue]['0_freq'].toFixed(2)}</td></tr>
-                                <tr><td>${variability[group][residue]['1_item']}</td><td>${variability[group][residue]['1_freq'].toFixed(2)}</td></tr>
-                                <tr><td>${variability[group][residue]['2_item']}</td><td>${variability[group][residue]['2_freq'].toFixed(2)}</td></tr>
-                                <tr><td>${variability[group][residue]['3_item']}</td><td>${variability[group][residue]['3_freq'].toFixed(2)}</td></tr>
-                                `
-                        } else {
-                            var tooltip_HTML_variant_freqs_body = `
-                                <tr><td>${variability[group][residue]['0_item_AA']} (${variability[group][residue]['0_item']})</td><td>${variability[group][residue]['0_freq'].toFixed(2)}</td></tr>
-                                <tr><td>${variability[group][residue]['1_item_AA']} (${variability[group][residue]['1_item']})</td><td>${variability[group][residue]['1_freq'].toFixed(2)}</td></tr>
-                                <tr><td>${variability[group][residue]['2_item_AA']} (${variability[group][residue]['2_item']})</td><td>${variability[group][residue]['2_freq'].toFixed(2)}</td></tr>
-                                <tr><td>${variability[group][residue]['3_item_AA']} (${variability[group][residue]['3_item']})</td><td>${variability[group][residue]['3_freq'].toFixed(2)}</td></tr>
-                                `
-                        }
-                    }
-
-                    if ($('#show_tooltip').is(':checked') && $('#show_tooltip_when').val() == 'all residues') {
-                        tooltip_HTML_body = `<table class="tooltip-table">` + tooltip_HTML_body + `</table>`
-                        tooltip_HTML = tooltip_HTML_title + tooltip_HTML_body
-
-                        // Variant data is available if a variant exists at hovered residue
-                        if (variability[group].hasOwnProperty(residue)) {
-                            tooltip_HTML_variant_body = `<table class="tooltip-table">` + tooltip_HTML_variant_body + `</table>`
-                            tooltip_HTML += tooltip_HTML_variant_title + tooltip_HTML_variant_body
-                            tooltip_HTML_variant_freqs_body = `<table class="tooltip-table">` + tooltip_HTML_variant_freqs_body + `</table>`
-                            tooltip_HTML += tooltip_HTML_variant_freqs_title + tooltip_HTML_variant_freqs_body
-                        }
-
-                        tooltip.innerHTML = tooltip_HTML;
-                        tooltip.style.bottom = window.innerHeight - mp.y + 3 + "px";
-                        tooltip.style.left = mp.x + 3 + "px";
-                        tooltip.style.display = "block";
-                    }
-                    else if ($('#show_tooltip').is(':checked') && $('#show_tooltip_when').val() == 'variant residues') {
-                        if (variability[group].hasOwnProperty(residue)) {
-                            tooltip_HTML_body = `<table class="tooltip-table">` + tooltip_HTML_body + `</table>`
-                            tooltip_HTML = tooltip_HTML_title + tooltip_HTML_body
-
-                            tooltip_HTML_variant_body = `<table class="tooltip-table">` + tooltip_HTML_variant_body + `</table>`
-                            tooltip_HTML += tooltip_HTML_variant_title + tooltip_HTML_variant_body
-                            tooltip_HTML_variant_freqs_body = `<table class="tooltip-table">` + tooltip_HTML_variant_freqs_body + `</table>`
-                            tooltip_HTML += tooltip_HTML_variant_freqs_title + tooltip_HTML_variant_freqs_body
-
-                            tooltip.innerHTML = tooltip_HTML;
-                            tooltip.style.bottom = window.innerHeight - mp.y + 3 + "px";
-                            tooltip.style.left = mp.x + 3 + "px";
-                            tooltip.style.display = "block";
-                        }
-                    }
-
-                    previous_hovered_residue = residue;
-                } else {
-                    tooltip.style.display = "none";
-                    if ($('#show_ballstick').is(':checked') && $('#show_ballstick_when').val() != 'always'){
+            if (pickingProxy && pickingProxy.atom) {
+                if (pickingProxy.atom.resno != previous_hovered_residue && !(['always', 'variant residue'].includes($('#show_ballstick_when').val()))) {
+                    // remove ball+stick if hovered residue changed or 
+                    if (pickingProxy.atom.resno != previous_hovered_residue) {
                         stage.compList[0].reprList.slice(0).forEach((rep) => {
                             if (rep.name == 'ball+stick') {
                                 rep.dispose();
@@ -429,16 +333,139 @@ async function create_single_ngl_view(group, num_rows, num_columns) {
                         });
                     }
                 }
-            });
 
-            let func = () => { apply_orientation_matrix_to_all_stages( stage.viewerControls.getOrientation()); };
-            stage.mouseObserver.signals.scrolled.add(() => { func(); });
-            stage.mouseObserver.signals.dragged.add(() => { func(); });
-            $(`#ngl_${group}`).mouseup(func);
+                let residue = pickingProxy.atom.resno;
+                let mp = pickingProxy.mouse.position;
 
-            stages[group] = stage;
+                if ($('#show_ballstick').is(':checked') && !(['always', 'variant residue'].includes($('#show_ballstick_when').val()))) {
+                    if ($('#show_ballstick_when').val() == 'hovered residue') {
+                        var selection = "(" + residue + ")" + " and sidechainAttached";
+                    }
+                    else if ($('#show_ballstick_when').val() == 'hovered residue + contacts') {
+                        var selection = "(" + residue_info[residue]['contact_numbers'].split(',').join(', ') + ")" + " and sidechainAttached";
+                    }
+                    if ($('#show_ballstick_when').val() == 'hovered residue + variant contacts') {
+                        let contacts = residue_info[residue]['contact_numbers'].split(',');
+                        let variant_contacts = [];
+                        for (i in contacts) {
+                            if (contacts[i] == String(residue)) {
+                                variant_contacts.push(contacts[i]);
+                            } 
+                            else if (variability[group].hasOwnProperty(parseInt(contacts[i]))) {
+                                variant_contacts.push(contacts[i]);
+                            }
+                        }
+                        var selection = "(" + variant_contacts.join(', ') + ")" + " and sidechainAttached";
+                    }
+                    stage.compList[0].addRepresentation("ball+stick", {
+                        hydrogenBond: true,
+                        sele: selection
+                    });
+                }
 
-            defer.resolve();
+                // Reference data is always available
+                var tooltip_HTML_title = `<h5>Reference info</h5>`
+                var tooltip_HTML_body = `
+                    <tr><td>Residue</td><td>${residue_info[residue]['amino_acid']} (${residue_info[residue]['codon']})</td></tr>
+                    <tr><td>Residue No.</td><td>${residue_info[residue]['codon_number']}</td></tr>
+                    <tr><td>Secondary Structure</td><td>${residue_info[residue]['sec_struct']}</td></tr>
+                    <tr><td>Solvent Accessibility</td><td>${residue_info[residue]['rel_solvent_acc'].toFixed(2)}</td></tr>
+                    <tr><td>(Phi, Psi)</td><td>(${residue_info[residue]['phi'].toFixed(1)}, ${residue_info[residue]['psi'].toFixed(1)})</td></tr>
+                    <tr><td>Contacts With</td><td>${residue_info[residue]['contact_numbers']}</td></tr>
+                    `
+
+                // Variant data is available if a variant exists at hovered residue
+                if (variability[group].hasOwnProperty(residue)) {
+                    var tooltip_HTML_variant_title = `<h5>Variant info</h5>`
+                    var tooltip_HTML_variant_body = `
+                        <tr><td>Mean Dfc</td><td>${variability[group][residue]['departure_from_consensus'].toFixed(2)}</td></tr>
+                        <tr><td>Prevalence</td><td>${variability[group][residue]['occurrence']} of ${parseInt(Math.round(variability[group][residue]['occurrence'] / variability[group][residue]['prevalence']))} samples</td></tr>
+                        <tr><td>Site Coverage</td><td>${variability[group][residue]['coverage'].toFixed(2)}</td></tr>
+                        ${variability[group][residue].hasOwnProperty('mean_normalized_coverage') ? `<tr><td>Site Coverage / Gene Coverage</td><td>${variability[group][residue]['mean_normalized_coverage'].toFixed(2)}</td></tr>` : ``}
+                        <tr><td>Mean Entropy</td><td>${variability[group][residue]['entropy'].toFixed(2)}</td></tr>
+                        `
+                    // add engine-specific data
+                    if ($('[name=engine]:checked').val() == 'AA') {
+                        // append to body
+                        tooltip_HTML_variant_body += `<tr><td>Mean BLOSUM90</td><td>${variability[group][residue]['BLOSUM90'].toFixed(1)}</td></tr>`
+                    } else {
+                        // append to body
+                        tooltip_HTML_variant_body += `<tr><td>Synonymity</td><td>${variability[group][residue]['synonymity'].toFixed(2)}</td></tr>`
+                    }
+
+                    var tooltip_HTML_variant_freqs_title = `<h5>Variant frequencies</h5>`
+                    if ($('[name=engine]:checked').val() == 'AA') {
+                        var tooltip_HTML_variant_freqs_body = `
+                            <tr><td>${variability[group][residue]['0_item']}</td><td>${variability[group][residue]['0_freq'].toFixed(2)}</td></tr>
+                            <tr><td>${variability[group][residue]['1_item']}</td><td>${variability[group][residue]['1_freq'].toFixed(2)}</td></tr>
+                            <tr><td>${variability[group][residue]['2_item']}</td><td>${variability[group][residue]['2_freq'].toFixed(2)}</td></tr>
+                            <tr><td>${variability[group][residue]['3_item']}</td><td>${variability[group][residue]['3_freq'].toFixed(2)}</td></tr>
+                            `
+                    } else {
+                        var tooltip_HTML_variant_freqs_body = `
+                            <tr><td>${variability[group][residue]['0_item_AA']} (${variability[group][residue]['0_item']})</td><td>${variability[group][residue]['0_freq'].toFixed(2)}</td></tr>
+                            <tr><td>${variability[group][residue]['1_item_AA']} (${variability[group][residue]['1_item']})</td><td>${variability[group][residue]['1_freq'].toFixed(2)}</td></tr>
+                            <tr><td>${variability[group][residue]['2_item_AA']} (${variability[group][residue]['2_item']})</td><td>${variability[group][residue]['2_freq'].toFixed(2)}</td></tr>
+                            <tr><td>${variability[group][residue]['3_item_AA']} (${variability[group][residue]['3_item']})</td><td>${variability[group][residue]['3_freq'].toFixed(2)}</td></tr>
+                            `
+                    }
+                }
+
+                if ($('#show_tooltip').is(':checked') && $('#show_tooltip_when').val() == 'all residues') {
+                    tooltip_HTML_body = `<table class="tooltip-table">` + tooltip_HTML_body + `</table>`
+                    tooltip_HTML = tooltip_HTML_title + tooltip_HTML_body
+
+                    // Variant data is available if a variant exists at hovered residue
+                    if (variability[group].hasOwnProperty(residue)) {
+                        tooltip_HTML_variant_body = `<table class="tooltip-table">` + tooltip_HTML_variant_body + `</table>`
+                        tooltip_HTML += tooltip_HTML_variant_title + tooltip_HTML_variant_body
+                        tooltip_HTML_variant_freqs_body = `<table class="tooltip-table">` + tooltip_HTML_variant_freqs_body + `</table>`
+                        tooltip_HTML += tooltip_HTML_variant_freqs_title + tooltip_HTML_variant_freqs_body
+                    }
+
+                    tooltip.innerHTML = tooltip_HTML;
+                    tooltip.style.bottom = window.innerHeight - mp.y + 3 + "px";
+                    tooltip.style.left = mp.x + 3 + "px";
+                    tooltip.style.display = "block";
+                }
+                else if ($('#show_tooltip').is(':checked') && $('#show_tooltip_when').val() == 'variant residues') {
+                    if (variability[group].hasOwnProperty(residue)) {
+                        tooltip_HTML_body = `<table class="tooltip-table">` + tooltip_HTML_body + `</table>`
+                        tooltip_HTML = tooltip_HTML_title + tooltip_HTML_body
+
+                        tooltip_HTML_variant_body = `<table class="tooltip-table">` + tooltip_HTML_variant_body + `</table>`
+                        tooltip_HTML += tooltip_HTML_variant_title + tooltip_HTML_variant_body
+                        tooltip_HTML_variant_freqs_body = `<table class="tooltip-table">` + tooltip_HTML_variant_freqs_body + `</table>`
+                        tooltip_HTML += tooltip_HTML_variant_freqs_title + tooltip_HTML_variant_freqs_body
+
+                        tooltip.innerHTML = tooltip_HTML;
+                        tooltip.style.bottom = window.innerHeight - mp.y + 3 + "px";
+                        tooltip.style.left = mp.x + 3 + "px";
+                        tooltip.style.display = "block";
+                    }
+                }
+
+                previous_hovered_residue = residue;
+            } else {
+                tooltip.style.display = "none";
+                if ($('#show_ballstick').is(':checked') && !(['always', 'variant residue'].includes($('#show_ballstick_when').val()))){
+                    stage.compList[0].reprList.slice(0).forEach((rep) => {
+                        if (rep.name == 'ball+stick') {
+                            rep.dispose();
+                        }
+                    });
+                }
+            }
+        });
+
+        let func = () => { apply_orientation_matrix_to_all_stages( stage.viewerControls.getOrientation()); };
+        stage.mouseObserver.signals.scrolled.add(() => { func(); });
+        stage.mouseObserver.signals.dragged.add(() => { func(); });
+        $(`#ngl_${group}`).mouseup(func);
+
+        stages[group] = stage;
+
+        defer.resolve();
     });
 
     return defer.promise();
@@ -448,7 +475,7 @@ function load_protein() {
     let gene_callers_id = $('#gene_callers_id_list').val();
     var defer = $.Deferred();
     $('.overlay').show();
-    
+
     $.ajax({
         type: 'GET',
         cache: false,
@@ -458,6 +485,24 @@ function load_protein() {
             histogram_data = data['histograms'];
             pdb_content = data['pdb_content'];
             residue_info = move_codon_number_to_index(JSON.parse(data['residue_info']));
+            defer.resolve();
+        }
+    });
+
+    return defer.promise();
+}
+
+function load_gene_function_info() {
+    let gene_callers_id = $('#gene_callers_id_list').val();
+    var defer = $.Deferred();
+
+    $.ajax({
+        type: 'GET',
+        cache: false,
+        url: '/data/get_gene_function_info/' + gene_callers_id,
+        success: function(gene_data) {
+            var geneFunctionHtml = get_gene_functions_table_html_for_structure(gene_data);
+            $("#gene_function_info").html(geneFunctionHtml);
             defer.resolve();
         }
     });
@@ -571,6 +616,9 @@ function draw_variability() {
             if (rep.name == 'spacefill') {
                 rep.dispose();
             }
+            if (rep.name == 'ball+stick' && $('#show_ballstick_when').val() == 'variant residue') {
+                rep.dispose();
+            }
         });
 
         if (Object.keys(data).length > 0) {
@@ -588,6 +636,7 @@ function draw_variability() {
                     if (selected_column_info['data_type'] == 'float' || selected_column_info['data_type'] == 'integer') {
                         let min_value = parseFloat($('#color_min').val());
                         let max_value = parseFloat($('#color_max').val());
+                        let middle_value = (min_value + max_value) / 2;
 
                         if (min_value >= max_value) {
                             $('#dynamic_color_error').show();
@@ -598,10 +647,24 @@ function draw_variability() {
                         let val = (parseFloat(column_value) - min_value) / (max_value - min_value);
                         val = Math.max(0, Math.min(1, val));
 
-                        spacefill_options['color'] = getGradientColor(
-                            $('#color_start').attr('color'),
-                            $('#color_end').attr('color'),
-                            val);
+                        if ($('#show_3_color').is(':checked')) {
+                            if (val <= 0.5) {
+                                spacefill_options['color'] = getGradientColor(
+                                    $('#color_start').attr('color'),
+                                    $('#color_middle').attr('color'),
+                                    val);
+                            } else {
+                                spacefill_options['color'] = getGradientColor(
+                                    $('#color_middle').attr('color'),
+                                    $('#color_end').attr('color'),
+                                    val);
+                            }
+                        } else {
+                            spacefill_options['color'] = getGradientColor(
+                                $('#color_start').attr('color'),
+                                $('#color_end').attr('color'),
+                                val);
+                        }
                     }
                     else
                     {
@@ -642,6 +705,15 @@ function draw_variability() {
 
                 let representation = component.addRepresentation("spacefill", spacefill_options);
                 representation['variability'] = data[index];
+
+                if ($('#show_ballstick').is(':checked')) {
+                    if ($('#show_ballstick_when').val() == 'variant residue') {
+                        var selection = data[index]['codon_number'] + " and sidechainAttached";
+                        component.addRepresentation("ball+stick", {
+                            sele: selection
+                        });
+                    }
+                }
             }
         }
     }
@@ -677,21 +749,23 @@ function draw_histogram() {
 
         let data_points = [];
 
-        for (let i=0; i < normalized_bins.length; i++) {
+        for (let i=0; i < normalized_counts.length; i++) {
             data_points.push({'x': normalized_bins[i], 'y': height - normalized_counts[i]});
+            data_points.push({'x': normalized_bins[i+1], 'y': height - normalized_counts[i]});
         }
+        data_points.push({'x': width, 'y': height})
 
-        var interpolate = d3.line()
+        var make_bar_chart = d3.line()
                             .x(function(d) { return d.x; })
-                            .y(function(d) { return d.y; })
-                            .curve(d3.curveCardinal);
+                            .y(function(d) { return d.y; });
 
-        var interpolated_line = interpolate(data_points);
-        interpolated_line += `L ${data_points[normalized_bins.length - 1]['x']} ${height} L ${data_points[0]['x']} ${height}`;
+        var bar_chart = make_bar_chart(data_points);
+        bar_chart += `L ${data_points[normalized_bins.length - 1]['x']} ${height} L ${data_points[0]['x']} ${height}`;
 
         svg.append("path")
             .style("fill","#337ab7")
-            .attr("d",function(d,i){ return interpolated_line; });
+            .style("stroke","#182943")
+            .attr("d",function(d,i){ return bar_chart; });
     }
 };
 
@@ -700,10 +774,10 @@ function create_ui() {
     var defer = $.Deferred();
     let gene_callers_id = $('#gene_callers_id_list').val();
     let engine = $('[name=engine]:checked').val();
-    
+
     backupFilters();
 
-   $.ajax({
+    $.ajax({
         type: 'POST',
         cache: false,
         url: '/data/get_column_info',
@@ -732,7 +806,7 @@ function create_ui() {
             }
 
             column_info.forEach((item) => {
-                if (item['as_perspective']) {
+                if (item['as_view']) {
                     $('#color_target_column').append(`<option value="${item['name']}">${item['title']}</item>`);
                     $('#size_target_column').append(`<option value="${item['name']}">${item['title']}</item>`);
                 }
@@ -748,7 +822,7 @@ function create_ui() {
 
                     $(container).append(`
                         <div class="widget" data-column="${item['name']}" data-controller="${item['as_filter']}">
-                            ${item['title']}<br />
+                            <span class="settings-header"><h5>${item['title']}</h5></span><br />
                             <svg id="histogram_${item['name']}" width="100%" height="30" style="position: relative; top: 6;" viewBox="0 0 200 30" preserveAspectRatio="none"></svg>   
                             <input id="${item['name']}" 
                                     type="${item['data_type']}" 
@@ -771,7 +845,7 @@ function create_ui() {
                     
                     $(container).append(`
                         <div class="widget" data-column="${item['name']}" data-controller="${item['as_filter']}">
-                            ${item['title']}<br />
+                            <span class="settings-header"><h5>${item['title']}</h5></span><br />
                             ${item['choices'].map((choice) => { return `
                                 <input class="form-check-input" type="checkbox" id="${item['name']}_${choice}" value="${choice}" onclick="fetch_and_draw_variability();" ${ checked_choices.indexOf(choice) > -1 ? 'checked="checked"' : ''}>
                                 <label class="form-check-label" for="${item['name']}_${choice}">${choice}</label>`; }).join('')}
@@ -889,48 +963,48 @@ function onTargetColumnChange(element) {
 
 
 function getGradientColor(start_color, end_color, percent) {
-   // strip the leading # if it's there
-   start_color = start_color.replace(/^\s*#|\s*$/g, '');
-   end_color = end_color.replace(/^\s*#|\s*$/g, '');
+    // strip the leading # if it's there
+    start_color = start_color.replace(/^\s*#|\s*$/g, '');
+    end_color = end_color.replace(/^\s*#|\s*$/g, '');
 
-   // convert 3 char codes --> 6, e.g. `E0F` --> `EE00FF`
-   if(start_color.length == 3){
-     start_color = start_color.replace(/(.)/g, '$1$1');
-   }
+    // convert 3 char codes --> 6, e.g. `E0F` --> `EE00FF`
+    if(start_color.length == 3){
+      start_color = start_color.replace(/(.)/g, '$1$1');
+    }
 
-   if(end_color.length == 3){
-     end_color = end_color.replace(/(.)/g, '$1$1');
-   }
+    if(end_color.length == 3){
+      end_color = end_color.replace(/(.)/g, '$1$1');
+    }
 
-   // get colors
-   var start_red = parseInt(start_color.substr(0, 2), 16),
-       start_green = parseInt(start_color.substr(2, 2), 16),
-       start_blue = parseInt(start_color.substr(4, 2), 16);
+    // get colors
+    var start_red = parseInt(start_color.substr(0, 2), 16),
+        start_green = parseInt(start_color.substr(2, 2), 16),
+        start_blue = parseInt(start_color.substr(4, 2), 16);
 
-   var end_red = parseInt(end_color.substr(0, 2), 16),
-       end_green = parseInt(end_color.substr(2, 2), 16),
-       end_blue = parseInt(end_color.substr(4, 2), 16);
+    var end_red = parseInt(end_color.substr(0, 2), 16),
+        end_green = parseInt(end_color.substr(2, 2), 16),
+        end_blue = parseInt(end_color.substr(4, 2), 16);
 
-   // calculate new color
-   var diff_red = end_red - start_red;
-   var diff_green = end_green - start_green;
-   var diff_blue = end_blue - start_blue;
+    // calculate new color
+    var diff_red = end_red - start_red;
+    var diff_green = end_green - start_green;
+    var diff_blue = end_blue - start_blue;
 
-   diff_red = Math.abs(( (diff_red * percent) + start_red )).toString(16).split('.')[0];
-   diff_green = Math.abs(( (diff_green * percent) + start_green )).toString(16).split('.')[0];
-   diff_blue = Math.abs(( (diff_blue * percent) + start_blue )).toString(16).split('.')[0];
+    diff_red = Math.abs(( (diff_red * percent) + start_red )).toString(16).split('.')[0];
+    diff_green = Math.abs(( (diff_green * percent) + start_green )).toString(16).split('.')[0];
+    diff_blue = Math.abs(( (diff_blue * percent) + start_blue )).toString(16).split('.')[0];
 
-// ensure 2 digits by color
-   if( diff_red.length == 1 )
-     diff_red = '0' + diff_red
+     // ensure 2 digits by color
+    if( diff_red.length == 1 )
+      diff_red = '0' + diff_red
 
-   if( diff_green.length == 1 )
-     diff_green = '0' + diff_green
+    if( diff_green.length == 1 )
+      diff_green = '0' + diff_green
 
-   if( diff_blue.length == 1 )
-     diff_blue = '0' + diff_blue
+    if( diff_blue.length == 1 )
+      diff_blue = '0' + diff_blue
 
-   return '#' + diff_red + diff_green + diff_blue;
+    return '#' + diff_red + diff_green + diff_blue;
  };
 
 
@@ -987,6 +1061,39 @@ async function make_image(group, sample) {
     }
 
     return blob;
+}
+
+function get_gene_functions_table_html_for_structure(gene){
+    if (gene.functions == null) {
+        functions_table_html = '<div class="alert alert-info" role="alert" style="margin: 10px;" id="no_function_annotations_warning">Functional annotations: This gene doesn\'t have any.</div>';
+        console.log(functions_table_html)
+        return functions_table_html
+    }
+
+    functions_table_html  = '<table class="table table-striped">';
+    functions_table_html += '<thead><th>Source</th>';
+    functions_table_html += '<th>Accession</th>';
+    functions_table_html += '<th>Annotation</th></thead>';
+    functions_table_html += '<tbody>';
+
+    for (function_source in gene.functions){
+        functions_table_html += '<tr>';
+
+        functions_table_html += '<td><b>' + function_source + '</b></td>';
+        if (gene.functions[function_source]) {
+            functions_table_html += '<td>' + decorateAccession(function_source, gene.functions[function_source][0]) + '</td>';
+            functions_table_html += '<td><em>' + decorateAnnotation(function_source, gene.functions[function_source][1]) + '</em></td>';
+        } else {
+            functions_table_html += '<td>&nbsp;</td>';
+            functions_table_html += '<td>&nbsp;</td>';
+        }
+
+        functions_table_html += '</tr>';
+    }
+
+    functions_table_html += '</tbody></table>';
+
+    return functions_table_html;
 }
 
 
@@ -1267,3 +1374,4 @@ function loadState()
         }
     });
 }
+
