@@ -1,0 +1,55 @@
+# -*- coding: utf-8
+
+'''
+'''
+
+import os
+import anvio
+import argparse
+import pandas as pd
+import anvio.utils as u
+import anvio.workflows as w
+import anvio.dbops as dbops
+import anvio.terminal as terminal
+import anvio.filesnpaths as filesnpaths
+
+from anvio.errors import ConfigError, FilesNPathsError
+from anvio.workflows.metapan import MetaPangenomicsWorkflow
+from anvio.tables.miscdata import TableForLayerAdditionalData
+
+__author__ = "Alon Shaiber"
+__copyright__ = "Copyright 2017, The anvio Project"
+__credits__ = []
+__license__ = "GPL 3.0"
+__version__ = anvio.__version__
+__maintainer__ = "Alon Shaiber"
+__email__ = "alon.shaiber@gmail.com"
+
+run = terminal.Run()
+progress = terminal.Progress()
+
+slave_mode= False if 'workflows/metapangenomics' in workflow.included[0] else True
+
+if not slave_mode:
+    # it is important that this comes before the include statement since
+    # M is defined here and will also be used in the contigs workflow
+    M = MetaPangenomicsWorkflow(argparse.Namespace(config=config))
+    M.init()
+    dirs_dict = M.dirs_dict
+    # include the workflow dependencies
+    # TODO: a better way to do this would be to have a dependencies variable under self
+    # and then to include all dependencies
+    include: w.get_workflow_snake_file_path('pangenomics')
+    include: w.get_workflow_snake_file_path('metagenomics')
+    include: w.get_workflow_snake_file_path('contigs')
+    include: w.get_workflow_snake_file_path('phylogenomics')
+
+# loading the metapangenome_fastas.txt file
+metapangenome_fastas_txt = M.get_param_value_from_config(['metapangenome_fastas_txt'])
+metapangenome_fastas_information = pd.read_csv(metapangenome_fastas_txt, sep='\t', index_col=False)
+
+if not slave_mode:
+    # check if all program dependencies are met. for this line to be effective,
+    # there should be an initial dry run step (which is the default behavior of
+    # the `WorkflowSuperClass`, so you are most likely covered).
+    M.check_workflow_program_dependencies(workflow)
