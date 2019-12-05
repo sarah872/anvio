@@ -10,7 +10,7 @@ function Gene(props) {
 Gene.prototype.draw = function(context, offsetY, offsetX) {
     let ctx = this.viewer.context;
     
-    let start = offsetX * this.viewer.xscale;
+    let start = (offsetX + this.start) * this.viewer.xscale;
     let width = (this.stop - this.start) * this.viewer.xscale;
 
     let triangleWidth = (width >= 10) ? 10 : width;
@@ -65,7 +65,7 @@ function GenomeViewer(options) {
     this.mouseDown = false;
     this.backupTransformationMatrix = {};
     this.panStart = {'x': 0, 'y': 0};
-    this.xscale = 0.1;
+    this.xscale = 0.0001;
 }
 
 GenomeViewer.prototype.getTrack = function(name) {
@@ -117,18 +117,16 @@ GenomeViewer.prototype.handleResize = function(event) {
 GenomeViewer.prototype.handleWheel = function(event) {
     let matrix = this.context.getTransform();
     if (event.deltaY < 0) {
-        this.xscale = this.xscale + 0.01;
+        //this.xscale = this.xscale + 0.01;
     } else {
-        this.xscale = this.xscale - 0.01;
+        //this.xscale = this.xscale - 0.01;
     }
     this.draw();
 }
 
 
-GenomeViewer.prototype.center = function(position) {
-
-    this.context.setTransform(1,0,0,1, -1 * position * this.xscale, 0);
-    console.log(position);
+GenomeViewer.prototype.center = function() {
+    this.context.setTransform(1,0,0,1, 0, 0);
     this.draw();
 }
 
@@ -162,6 +160,8 @@ GenomeTrack.prototype.draw = function(context, offset) {
 
 function Contig(viewer) {
     this.viewer = viewer;
+    this.name = null;
+    this.length = 0;
     this.offsetX = 0;
     this.genes = [];
 }
@@ -183,6 +183,6 @@ Contig.prototype.draw = function(context, offsetY) {
     context.fill();
 
     this.genes.forEach((gene) => { 
-        gene.draw(context, offsetY, range.min - this.offsetX);
+        gene.draw(context, offsetY, this.offsetX);
     });
 }

@@ -83,12 +83,12 @@
                             let track = genomeViewer.getTrack(genome_name);
                             let gene = track.contigs[0].getGene(gene_callers_id);
 
-                            track.contigs[0].offsetX = gene.start - min;
+                            track.contigs[0].offsetX = min - gene.start;
                         });
                     }
 
                     genomeViewer.handleResize();
-                    genomeViewer.center(min);
+                    genomeViewer.center();
                 });
             });
 
