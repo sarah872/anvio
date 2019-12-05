@@ -126,20 +126,11 @@ GenomeViewer.prototype.handleWheel = function(event) {
 
 
 GenomeViewer.prototype.center = function(position) {
-    let range = this.getRange();
-
-    this.xscale = 0.25;
 
     this.context.setTransform(1,0,0,1, -1 * position * this.xscale, 0);
     console.log(position);
     this.draw();
 }
-
-GenomeViewer.prototype.getRange = function() {
-    return {'min': Math.min.apply(Math, this.tracks.map(function(o) { return o.getRange()['min']; })),
-            'max': Math.max.apply(Math, this.tracks.map(function(o) { return o.getRange()['max']; }))}
-}
-
 
 GenomeViewer.prototype.clear = function() {
     let ctx = this.context;
@@ -162,27 +153,6 @@ function GenomeTrack(viewer) {
     this.contigs = [];
 }
 
-GenomeTrack.prototype.getRange = function() {
-    let min = -1;
-    let max = -1;
-    this.contigs.forEach((contig) => {
-        let contigRange = contig.getRange();
-        if (min == -1) {
-            min = contigRange.min;
-        }
-        else {
-            min = Math.min(min, contigRange.min);
-        }
-        if (max == -1) {
-            max = contigRange.max;
-        }
-        else {
-            max = Math.max(max, contigRange.max);
-        }
-    });
-
-    return {'min': min, 'max': max};
-}
 
 GenomeTrack.prototype.draw = function(context, offset) {
     this.contigs.forEach((contig) => { 
@@ -196,27 +166,6 @@ function Contig(viewer) {
     this.genes = [];
 }
 
-Contig.prototype.getRange = function() {
-    let min = -1;
-    let max = -1;
-    this.genes.forEach((gene) => {
-        if (min == -1) {
-            min = gene.start;
-        }
-        else {
-            min = Math.min(min, gene.start);
-        }
-        if (max == -1) {
-            max = gene.stop;
-        }
-        else {
-            max = Math.max(max, gene.stop);
-        }
-    });
-
-    return {'min': min, 'max': max + this.offsetX};
-}
-
 Contig.prototype.getGene = function(gene_callers_id) {
     let gene = this.genes.find((gene) => {
         return (gene.gene_callers_id == gene_callers_id);
@@ -225,8 +174,6 @@ Contig.prototype.getGene = function(gene_callers_id) {
 }
 
 Contig.prototype.draw = function(context, offsetY) {
-    let range = this.getRange();
-
     context.beginPath();
     context.fillStyle = "#DDD";
     context.rect(this.offsetX * this.viewer.xscale, 
