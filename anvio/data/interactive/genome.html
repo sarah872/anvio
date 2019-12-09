@@ -31,6 +31,7 @@
         <canvas id="canvas"></canvas>
         <script type="text/javascript" src="js/genome.js"></script>
         <script type="text/javascript">
+            var max = -1;
             const genomeViewer = new GenomeViewer({
                 'canvas': document.getElementById('canvas'),
             });
@@ -68,6 +69,7 @@
 
                     for (const cluster_name in data.clusters) {
                         let gene_start_pos = [];
+                        let contig_lengths = [];
                         data.clusters[cluster_name].forEach((cluster) => {
                             const {genome_name, gene_callers_id} = cluster;
                             
@@ -81,14 +83,19 @@
                             const {genome_name, gene_callers_id} = cluster;
                             
                             let track = genomeViewer.getTrack(genome_name);
-                            let gene = track.contigs[0].getGene(gene_callers_id);
+                            let contig = track.contigs[0];
+                            let gene = contig.getGene(gene_callers_id);
 
-                            track.contigs[0].offsetX = min - gene.start;
+                            contig.offsetX = min - gene.start;
+
+                            contig_lengths.push(contig.offsetX + contig.length);
                         });
+                        max = Math.max(...contig_lengths);
                     }
-
+                    genomeViewer.centerPosBase = min;
                     genomeViewer.handleResize();
-                    genomeViewer.center();
+                    genomeViewer.handleWheel();
+                    genomeViewer.center(min);
                 });
             });
 
