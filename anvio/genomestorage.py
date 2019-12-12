@@ -176,7 +176,15 @@ class GenomeStorage():
         gene_table_name, _, _ = self.get_table_defs('genes_in_contigs')
         gene_functions_table_name, _, _ = self.get_table_defs('gene_function_calls')
 
-        gene_aa_sequences = self.db.get_some_rows_from_table_as_dict(gene_aa_sequences_table_name, where_clause)
+        gene_aa_sequences = {}
+        for aa_sequence_tuple in self.db.get_some_rows_from_table(gene_aa_sequences_table_name, where_clause):
+            gene_callers_id, aa_sequence, genome_name = aa_sequence_tuple
+
+            if genome_name not in gene_aa_sequences:
+                gene_aa_sequences[genome_name] = {}
+
+            gene_aa_sequences[genome_name][gene_callers_id] = aa_sequence            
+
 
         for gene_info_tuple in self.db.get_some_rows_from_table(gene_table_name, where_clause):
             gene_callers_id, contig, start, stop, direction, partial, version, source, genome_name = gene_info_tuple
@@ -190,7 +198,7 @@ class GenomeStorage():
                 'start': start,
                 'stop': stop,
                 'direction': direction,
-                'aa_sequence': gene_aa_sequences[gene_callers_id]['sequence'],
+                'aa_sequence': gene_aa_sequences[genome_name][gene_callers_id],
                 'partial': partial,
                 'length': length,
                 'functions': {}
@@ -463,7 +471,6 @@ class GenomeStorage():
                     continue
 
                 aa_sequence = self.get_gene_sequence(genome_name, gene_caller_id)
-
                 fasta_output.write_id('%s_%d' % (genome_info_dict[genome_name]['genome_hash'], int(gene_caller_id)))
                 fasta_output.write_seq(aa_sequence, split=False)
 
