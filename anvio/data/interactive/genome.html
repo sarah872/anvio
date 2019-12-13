@@ -39,6 +39,7 @@
 
             fetch('/data/get_neighbors').then((response) => {
                 response.json().then((data) => {
+                    console.log(data);
                     for (const genome_name in data.contigs) {
                         let track = genomeViewer.getTrack(genome_name);
 
@@ -57,17 +58,17 @@
                         let genome_name = gene['genome_name'];
 
                         let track = genomeViewer.getTrack(genome_name);
-                        track.contigs[0].genes.push(
-                                new Gene({
-                                  'viewer': genomeViewer,
+                        track.contigs[0].genes.push({
                                   'gene_callers_id': gene['gene_callers_id'], 
                                   'start': gene['start'],
                                   'stop': gene['stop'],
-                                  'direction': gene['direction']}));
+                                  'direction': gene['direction']});
                     });
                     let min = -1;
 
                     for (const cluster_name in data.clusters) {
+                        genomeViewer.ribbons.push(new Ribbon(genomeViewer, data.clusters[cluster_name]));
+
                         let gene_start_pos = [];
                         let contig_lengths = [];
                         data.clusters[cluster_name].forEach((cluster) => {
