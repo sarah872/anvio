@@ -25,6 +25,7 @@ function GenomeViewer(options) {
     this.centerPos = 0;
     this.centerPosBase = 0;
     this.xscale = 0.1;
+    this.lastScrollTime = 0;
 }
 
 GenomeViewer.prototype.getTrack = function(name) {
@@ -84,14 +85,13 @@ GenomeViewer.prototype.handleResize = function(event) {
 }
 
 GenomeViewer.prototype.handleWheel = function(event) {
-    if (event && event.deltaY < 0) {
-        //this.xscale -= 0.0003;
-        this.xscale = this.xscale * 0.98;
-    } else {
-        //this.xscale += 0.0003;
-        this.xscale = this.xscale * 1.02;
+    let deltaTime = Date.now() - this.lastScrollTime;
+    if (deltaTime > 800) {
+        let scale = event.deltaY * -0.01;
+        this.xscale = Math.max(0.001, this.xscale + scale);
+        this.draw();
+        this.lastScrollTime = Date.now();
     }
-    this.draw();
 }
 
 
