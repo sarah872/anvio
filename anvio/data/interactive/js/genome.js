@@ -88,7 +88,7 @@ GenomeViewer.prototype.handleWheel = function(event) {
     let deltaTime = Date.now() - this.lastScrollTime;
     if (deltaTime > 800) {
         let scale = event.deltaY * -0.01;
-        this.xscale = Math.max(0.001, this.xscale + scale);
+        this.xscale = Math.max(0.005, this.xscale + scale);
         this.draw();
         this.lastScrollTime = Date.now();
     }
@@ -179,18 +179,25 @@ Contig.prototype.draw = function() {
         ctx.beginPath();
         ctx.fillStyle = "#F9A520"; 
 
-        if (gene.direction == 'f') {
-            ctx.moveTo(start + width - triangleWidth, this.offsetY);
-            ctx.lineTo(start + width, this.offsetY + 8);
-            ctx.lineTo(start + width - triangleWidth, this.offsetY + 16);
-        }
-        else
-        {
-            ctx.moveTo(start + triangleWidth, this.offsetY);
-            ctx.lineTo(start, this.offsetY + 8);
-            ctx.lineTo(start + triangleWidth, this.offsetY + 16);   
+        if (width > 4) {
+            // draw arrow head
+            if (gene.direction == 'f') {
+                ctx.moveTo(start + width - triangleWidth, this.offsetY);
+                ctx.lineTo(start + width, this.offsetY + 8);
+                ctx.lineTo(start + width - triangleWidth, this.offsetY + 16);
+            }
+            else
+            {
+                ctx.moveTo(start + triangleWidth, this.offsetY);
+                ctx.lineTo(start, this.offsetY + 8);
+                ctx.lineTo(start + triangleWidth, this.offsetY + 16);   
+            }
+        } else {
+            // only rectangle
+            ctx.rect(start, this.offsetY + 3, width, 10);
         }
 
+        // draw rectangle near arrow head if there is space
         if (width - triangleWidth > 0) {
             if (gene.direction == 'f')
             {

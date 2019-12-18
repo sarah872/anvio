@@ -30,6 +30,7 @@ class GenomeViewer():
         self.genome_name = 'E_faecalis_6240'
         self.gene_callers_id = 1338
 
+
     def get_neighbors(self):
         pan_db = db.DB(self.pan_db_path, anvio.__pan__version__)
         genome_storage = db.DB(self.genomes_storage_path, anvio.__genomes_storage_version__)
@@ -69,13 +70,7 @@ class GenomeViewer():
             if not target_gene['contig'] in contigs[genome_name]:
                 contigs[genome_name][target_gene['contig']] = contig_info[target_gene['contig']]
 
-            window = 10000
-            neighbors = genome_storage.get_some_rows_from_table_as_dict(
-                'genes_in_contigs', 'genome_name LIKE "%s" and \
-                                     start >= %d and \
-                                     stop <= %d' % (genome_name, 
-                                                   target_gene['start'] - window,
-                                                   target_gene['stop'] + window))
+            neighbors = genome_storage.get_some_rows_from_table_as_dict('genes_in_contigs', 'genome_name LIKE "%s"' % (genome_name))
 
             for gene_callers_id in neighbors:
                 neighbors[gene_callers_id]['gene_callers_id'] = gene_callers_id
