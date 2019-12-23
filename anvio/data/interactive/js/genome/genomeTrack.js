@@ -1,15 +1,20 @@
 import { Contig } from './contig.js';
 
 class GenomeTrack {
-    constructor(viewer) {
+    constructor(viewer, name) {
         this.viewer = viewer;
+        this.name = name;
         this.contigs = [];
     }
 
     getContig(contigName) {
-        let contig = this.contigs.find(contig => contig.name == contigName);
-        console.log(arguments, contig);
-        return contig;
+        let contig = this.contigs.find((contig) => contig.name == contigName);
+        
+        if (typeof result === 'undefined') {
+            throw `Contig "${contigName} not found in the genome track "${this.name}"."`;
+        }
+
+        return result;
     }
 
     addContig(contigData) {

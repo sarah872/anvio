@@ -29,7 +29,6 @@ function init() {
             }
 
             data.genes.forEach((gene) => {
-                console.log(gene.genome_name, gene.contig);
                 genomeViewer.addGene(gene.genome_name, gene.contig, {
                     'gene_callers_id': gene['gene_callers_id'],
                     'start': gene['start'],

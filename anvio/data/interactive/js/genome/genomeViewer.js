@@ -16,9 +16,7 @@ class GenomeViewer {
         this.width = 0;
         this.height = 0;
 
-        this.genomeTrackNames = {};
         this.genomeTracks = [];
-
         this.ribbons = [];
 
         this.mouseDown = false;
@@ -129,15 +127,11 @@ class GenomeViewer {
     */
     
     getGenomeTrack(genomeName) {
-        if (this.genomeTrackNames.hasOwnProperty(genomeName)) {
-            return this.genomeTracks[this.genomeTrackNames[genomeName]];
+        let track = this.genomeTracks.find((track) => track.name == genomeName);
+        
+        if (typeof track === 'undefined') {
+            track = new GenomeTrack(this, genomeName);
         }
-
-        let index = this.genomeTracks.length;
-        let track = new GenomeTrack(this);
-
-        this.genomeTracks.push(track);
-        this.genomeTrackNames[genomeName] = index;
 
         return track;
     }
@@ -153,9 +147,6 @@ class GenomeViewer {
         let track = this.getGenomeTrack(genomeName);
         let contig = track.getContig(contigName);
 
-        if (typeof contig === 'undefined') {
-            console.log('Not found', arguments);
-        }
         contig.addGene(geneData);
     }
 }
