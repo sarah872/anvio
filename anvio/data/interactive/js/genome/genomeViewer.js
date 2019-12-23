@@ -20,12 +20,6 @@ class GenomeViewer {
         this.tracks = [];
         this.ribbons = [];
 
-        this.canvas.addEventListener('mousemove', (event) => this.handleMouseMove(event));
-        this.canvas.addEventListener('mousedown', (event) => this.handleMouseDown(event));
-        this.canvas.addEventListener('mouseup', (event) => this.handleMouseUp(event));
-        this.canvas.addEventListener('wheel', (event) => this.handleWheel(event));
-        window.addEventListener('resize', (event) => this.handleResize(event));
-
         this.mouseDown = false;
         this.panStart = {
             'x': 0,
@@ -38,6 +32,15 @@ class GenomeViewer {
         this.xscale = 0.1;
         this.lastScrollTime = 0;
 
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        this.canvas.addEventListener('mousemove', (event) => this.handleMouseMove(event));
+        this.canvas.addEventListener('mousedown', (event) => this.handleMouseDown(event));
+        this.canvas.addEventListener('mouseup', (event) => this.handleMouseUp(event));
+        this.canvas.addEventListener('wheel', (event) => this.handleWheel(event));
+        window.addEventListener('resize', (event) => this.handleResize(event));
     }
 
     getTrack(name) {
