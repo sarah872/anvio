@@ -9,18 +9,23 @@ import json
 import anvio
 import anvio.db as db
 import anvio.terminal as terminal
+from anvio.tables.miscdata import TableForLayerOrders
+from anvio.dbops import PanSuperclass, get_item_orders_from_db
 
 progress = terminal.Progress()
 run = terminal.Run()
 pp = terminal.pretty_print
 
 
-class GenomeViewer():
+class GenomeViewer(PanSuperclass):
     def __init__(self, args, run=run, progress=progress):
+        
         self.run = run
         self.progress = progress
         self.args = args
         self.mode = 'genome'
+        
+        PanSuperclass.__init__(self, self.args)
 
         A = lambda x: args.__dict__[x] if x in args.__dict__ else None
         self.pan_db_path = A('pan_db')
@@ -29,6 +34,8 @@ class GenomeViewer():
 
         self.genome_name = 'E_faecalis_6240'
         self.gene_callers_id = 1338
+
+        self.layers_order_data_dict = TableForLayerOrders(self.args).get()
 
 
     def get_neighbors(self):
@@ -77,7 +84,12 @@ class GenomeViewer():
             
             genes.extend(neighbors.values())
 
-        return {'genes': genes, 'clusters': clusters, 'contigs': contigs}
+        return { 
+            'genes': genes, 
+            'clusters': clusters, 
+            'contigs': contigs,
+            'layers_orders': self.layers_order_data_dict 
+            }
 
 
 
