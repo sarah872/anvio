@@ -16,8 +16,9 @@ class GenomeViewer {
         this.width = 0;
         this.height = 0;
 
-        this.trackNames = {};
-        this.tracks = [];
+        this.genomeTrackNames = {};
+        this.genomeTracks = [];
+
         this.ribbons = [];
 
         this.mouseDown = false;
@@ -35,25 +36,16 @@ class GenomeViewer {
         this.bindEvents();
     }
 
+    /*
+        Events:
+    */
+
     bindEvents() {
         this.canvas.addEventListener('mousemove', (event) => this.handleMouseMove(event));
         this.canvas.addEventListener('mousedown', (event) => this.handleMouseDown(event));
         this.canvas.addEventListener('mouseup', (event) => this.handleMouseUp(event));
         this.canvas.addEventListener('wheel', (event) => this.handleWheel(event));
         window.addEventListener('resize', (event) => this.handleResize(event));
-    }
-
-    getTrack(name) {
-        let index = -1;
-        if (this.trackNames.hasOwnProperty(name)) {
-            index = this.trackNames[name];
-            return this.tracks[index];
-        } else {
-            index = this.tracks.length;
-            this.tracks.push(new GenomeTrack(this));
-            this.trackNames[name] = index;
-        }
-        return this.tracks[index];
     }
 
     handleMouseMove(event) {
@@ -69,29 +61,11 @@ class GenomeViewer {
 
     handleMouseDown(event) {
         this.mouseDown = true;
-
-        let found = false;
-
-        for (let i = 0; i < this.tracks.length; i++) {
-            if (event.y > this.tracks[i].contigs[0].offsetY + 3 &&
-                event.y < this.tracks[i].contigs[0].offsetY + 13) {
-
-                this.panStart = {
-                    'x': event.x - this.tracks[i].contigs[0].offsetXpx,
-                    'y': event.y,
-                    'target': this.tracks[i]
-                };
-                found = true;
-            }
-        }
-
-        if (!found) {
-            this.panStart = {
-                'x': event.x - this.centerPos,
-                'y': event.y,
-                'target': null
-            };
-        }
+        this.panStart = {
+            'x': event.x - this.centerPos,
+            'y': event.y,
+            'target': null
+        };
     }
 
     handleMouseUp(event) {
@@ -115,6 +89,11 @@ class GenomeViewer {
             this.lastScrollTime = Date.now();
         }
     }
+
+
+    /*
+        Drawing methods
+    */
 
     center() {
         this.centerPos = this.width / 2;
@@ -143,6 +122,41 @@ class GenomeViewer {
         this.tracks.forEach((track, order) => {
             track.draw();
         });
+    }
+
+    /*
+        Data access
+    */
+    
+    getGenomeTrack(genomeName) {
+        if (this.genomeTrackNames.hasOwnProperty(genomeName)) {
+            return this.genomeTracks[this.genomeTrackNames[genomeName]];
+        }
+
+        let index = this.genomeTracks.length;
+        let track = new GenomeTrack(this);
+
+        this.genomeTracks.push(track);
+        this.genomeTrackNames[genomeName] = index;
+
+        return track;
+    }
+
+
+    addContig(genomeName, contigData) {
+        let track = this.getGenomeTrack(genomeName);
+        track.addContig(contigData);
+
+    }
+
+    addGene(genomeName, contigName, geneData) {
+        let track = this.getGenomeTrack(genomeName);
+        let contig = track.getContig(contigName);
+
+        if (typeof contig === 'undefined') {
+            console.log('Not found', arguments);
+        }
+        contig.addGene(geneData);
     }
 }
 

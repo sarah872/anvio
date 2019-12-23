@@ -11,6 +11,10 @@ class Contig {
         this.offsetY = 0;
     }
 
+    addGene(geneData) {
+        
+    }
+
     getGene(gene_callers_id) {
         let gene = this.genes.find((gene) => {
             return (gene.gene_callers_id == gene_callers_id);
