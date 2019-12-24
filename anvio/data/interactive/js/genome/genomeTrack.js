@@ -26,10 +26,10 @@ class GenomeTrack {
         this.contigs.push(contig);
     }
 
-    draw() {
+    getBuffer() {
         let canvas;
         this.contigs.forEach((contig) => {
-            canvas = contig.draw();
+            canvas = contig.getBuffer();
         });
         return canvas;
     }

@@ -113,7 +113,7 @@ class GenomeViewer {
             this.buffers = [];
 
             this.genomeTracks.forEach((track) => {
-                this.buffers.push(track.draw())
+                this.buffers.push(track.getBuffer());
             });
 
             this.needsRedraw = false;

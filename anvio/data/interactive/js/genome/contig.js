@@ -22,7 +22,7 @@ class Contig {
         return parseInt(point / this.viewer.basesPerPixel);
     }
 
-    draw() {
+    getBuffer() {
         let buffer = new OffscreenCanvas(this.scale(this.length), 20);
         let ctx = buffer.getContext('2d');
 
@@ -38,7 +38,7 @@ class Contig {
             let width = this.scale(gene.stop - gene.start);
 
             let triangleWidth = (width >= 10) ? 10 : width;
-            
+
             ctx.beginPath();
             ctx.fillStyle = "#F9A520";
 
