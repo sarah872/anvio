@@ -67,14 +67,16 @@ Node.prototype.GetBorderNodes = function() {
 };
 
 
-Node.prototype.GetChildren = function() {
+Node.prototype.GetChildren = function(leafOnly = false) {
     var n = new NodeIterator(this);
     var q = n.Begin();
     var children = [];
 
     while (q != null)
     {
-        children.push(q);
+        if (leafOnly && q.isLeaf()) {
+            children.push(q);
+        }
         q=n.Next();
     }
 
@@ -82,13 +84,15 @@ Node.prototype.GetChildren = function() {
 }
 
 
-Node.prototype.IterateChildren = function*() {
+Node.prototype.IterateChildren = function*(leafOnly = false) {
     var n = new NodeIterator(this);
     var q = n.Begin();
 
     while (q != null)
     {
-        yield q;
+        if (leafOnly && q.isLeaf()) {
+            yield q;
+        }
         q=n.Next();
     }
 }
