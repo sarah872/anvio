@@ -187,6 +187,12 @@ Tree.prototype.Parse = function(str, edge_length_norm) {
 
     this.error = 0;
 
+    if (typeof mode === 'undefined') {
+        // TO DO: do gene mode check somewhere else, 
+        // this class should not read 'mode' at all
+        mode = 'full';
+    }
+
     while ((state != 99) && (this.error == 0)) {
         switch (state) {
             case 0:
