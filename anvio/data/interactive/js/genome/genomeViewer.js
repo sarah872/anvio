@@ -75,14 +75,10 @@ class GenomeViewer {
     }
 
     handleWheel(event) {
-        // Vertical scroll
-        this.centerPos -= event.deltaX;
-
-        // Throttled, zoom in but this should be a button seriously.
         let deltaTime = Date.now() - this.lastScrollTime;
-        if (deltaTime > 800) {
-            let scale = event.deltaY * -0.01;
-            this.xscale = Math.max(0.005, this.xscale + scale);
+        
+        if (deltaTime > 10) {
+            this.centerPos -= event.deltaX * 4;
             this.lastScrollTime = Date.now();
         }
 
@@ -127,6 +123,12 @@ class GenomeViewer {
         this.ribbons.forEach((ribbon) => {
             ribbon.draw();
         });*/
+    }
+
+    changeScale(basesPerPixel) {
+        this.basesPerPixel = basesPerPixel;
+        this.needsRedraw = true;
+        this.draw();
     }
 
     /*
