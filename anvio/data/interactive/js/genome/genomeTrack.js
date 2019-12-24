@@ -8,10 +8,10 @@ class GenomeTrack {
     }
 
     getContig(contigName) {
-        let contig = this.contigs.find((contig) => contig.name == contigName);
+        let result = this.contigs.find((contig) => contig.name == contigName);
         
         if (typeof result === 'undefined') {
-            throw `Contig "${contigName} not found in the genome track "${this.name}"."`;
+            throw `Contig "${contigName}" not found in the genome track "${this.name}".`;
         }
 
         return result;
