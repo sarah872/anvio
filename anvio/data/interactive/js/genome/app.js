@@ -37,6 +37,9 @@ function init() {
                             'direction': gene['direction']
                         });
                 });
+
+
+                genomeViewer.setOrder(data['layers_orders']['gene_cluster presence absence']);
             }
             catch (e) {
                 console.log(e);

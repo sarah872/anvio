@@ -1,4 +1,6 @@
 import { GenomeTrack } from './genomeTrack.js';
+import { TreeDrawer } from './treeDrawer.js';
+
 
 class GenomeViewer {
     constructor(options) {
@@ -20,6 +22,7 @@ class GenomeViewer {
         this.ribbons = [];
 
         this.mouseDown = false;
+        this.hasTree = false;
         this.panStart = {
             'x': 0,
             'y': 0
@@ -119,7 +122,14 @@ class GenomeViewer {
         this.buffers.forEach((buffer, order) => {
             this.context.drawImage(buffer, this.centerPos, 10 + 40 * order);
         });
-/*
+
+        if (this.hasTree) {
+            let tree = new TreeDrawer(this, this.order);
+            this.context.clearRect(0, 0, 200, this.height);
+            this.context.drawImage(tree.getBuffer(), 0, 0);            
+        }
+
+        /*
         this.ribbons.forEach((ribbon) => {
             ribbon.draw();
         });*/
@@ -158,6 +168,13 @@ class GenomeViewer {
         let contig = track.getContig(contigName);
 
         contig.addGene(geneData);
+    }
+
+    setOrder(order) {
+        if (order.hasOwnProperty('newick')) {
+            this.order = order['newick'];
+            this.hasTree = true;
+        }
     }
 }
 
