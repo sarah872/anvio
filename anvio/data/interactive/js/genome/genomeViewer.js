@@ -25,13 +25,13 @@ class GenomeViewer {
             'y': 0
         };
 
-        this.windowSize = 10000;
-        this.centerPos = 0;
-        this.centerPosBase = 0;
-        this.xscale = 0.1;
         this.lastScrollTime = 0;
+        this.basesPerPixel = 40;
 
         this.bindEvents();
+
+        this.needsRedraw = true;
+        this.buffers = [];
     }
 
     /*
@@ -48,11 +48,7 @@ class GenomeViewer {
 
     handleMouseMove(event) {
         if (this.mouseDown) {
-            if (this.panStart.target) {
-                this.panStart.target.contigs[0].offsetXpx = event.x - this.panStart.x;
-            } else {
-                this.centerPos = event.x - this.panStart.x;
-            }
+            this.centerPos = event.x - this.panStart.x;
             this.draw();
         }
     }
@@ -79,13 +75,18 @@ class GenomeViewer {
     }
 
     handleWheel(event) {
+        // Vertical scroll
+        this.centerPos -= event.deltaX;
+
+        // Throttled, zoom in but this should be a button seriously.
         let deltaTime = Date.now() - this.lastScrollTime;
         if (deltaTime > 800) {
             let scale = event.deltaY * -0.01;
             this.xscale = Math.max(0.005, this.xscale + scale);
-            this.draw();
             this.lastScrollTime = Date.now();
         }
+
+        this.draw();
     }
 
 
@@ -108,15 +109,24 @@ class GenomeViewer {
     }
 
     draw() {
-        this.clear();
+        if (this.needsRedraw) {
+            this.buffers = [];
 
+            this.genomeTracks.forEach((track) => {
+                this.buffers.push(track.draw())
+            });
+
+            this.needsRedraw = false;
+        }
+
+        this.clear();
+        this.buffers.forEach((buffer, order) => {
+            this.context.drawImage(buffer, this.centerPos, 10 + 40 * order);
+        });
+/*
         this.ribbons.forEach((ribbon) => {
             ribbon.draw();
-        });
-
-        this.genomeTracks.forEach((track, order) => {
-            track.draw();
-        });
+        });*/
     }
 
     /*

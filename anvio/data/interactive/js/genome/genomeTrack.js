@@ -27,9 +27,11 @@ class GenomeTrack {
     }
 
     draw() {
+        let canvas;
         this.contigs.forEach((contig) => {
-            contig.draw();
+            canvas = contig.draw();
         });
+        return canvas;
     }
 }
 
