@@ -77,7 +77,7 @@ class GenomeViewer(PanSuperclass):
             if not target_gene['contig'] in contigs[genome_name]:
                 contigs[genome_name][target_gene['contig']] = contig_info[target_gene['contig']]
 
-            neighbors = genome_storage.get_some_rows_from_table_as_dict('genes_in_contigs', 'genome_name LIKE "%s"' % (genome_name))
+            neighbors = genome_storage.get_some_rows_from_table_as_dict('genes_in_contigs', 'genome_name LIKE "%s" AND contig LIKE "%s"' % (genome_name, target_gene['contig']))
 
             for gene_callers_id in neighbors:
                 neighbors[gene_callers_id]['gene_callers_id'] = gene_callers_id

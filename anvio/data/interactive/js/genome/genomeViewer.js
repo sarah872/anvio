@@ -110,14 +110,11 @@ class GenomeViewer {
     draw() {
         this.clear();
 
-        this.tracks.forEach((track, order) => {
-            track.contigs[0].offsetY = 50 + order * 22;
-        });
         this.ribbons.forEach((ribbon) => {
             ribbon.draw();
         });
 
-        this.tracks.forEach((track, order) => {
+        this.genomeTracks.forEach((track, order) => {
             track.draw();
         });
     }
@@ -131,6 +128,7 @@ class GenomeViewer {
         
         if (typeof track === 'undefined') {
             track = new GenomeTrack(this, genomeName);
+            this.genomeTracks.push(track);
         }
 
         return track;
