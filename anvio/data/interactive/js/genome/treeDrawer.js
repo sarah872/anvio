@@ -1,9 +1,9 @@
 
 class TreeDrawer {
-    constructor(viewer, newick) {
+    constructor(viewer, newick, treeWidth = 200, padding = 10) {
         this.viewer = viewer;
-        this.treeWidth = 200;
-        this.padding = 10;
+        this.treeWidth = treeWidth;
+        this.padding = padding;
 
         this.newick = newick;
 
@@ -88,6 +88,7 @@ class TreeDrawer {
         {
             if (q.IsLeaf())
             {
+                
                 var p0 = q.xy
                 var p1 = [];
                 var anc = q.ancestor;

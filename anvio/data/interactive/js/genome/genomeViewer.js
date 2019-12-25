@@ -124,8 +124,20 @@ class GenomeViewer {
         });
 
         if (this.hasTree) {
-            let tree = new TreeDrawer(this, this.order);
-            this.context.clearRect(0, 0, 200, this.height);
+            let treeWidth = 200;
+            let padding = 10;
+
+            if (this.centerPos <= 200 && this.centerPos >= 100) {
+                treeWidth = this.centerPos;
+                padding = 5;
+            }
+            else if (this.centerPos < 100) {
+                treeWidth = 100;
+                padding = 5;   
+            }
+
+            let tree = new TreeDrawer(this, this.order, treeWidth, padding);
+            this.context.clearRect(0, 0, treeWidth, this.height);
             this.context.drawImage(tree.getBuffer(), 0, 0);            
         }
 
