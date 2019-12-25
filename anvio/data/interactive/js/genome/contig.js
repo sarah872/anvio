@@ -1,3 +1,6 @@
+import {
+    Layer
+} from './drawing.js';
 
 class Contig {
     constructor(viewer) {
@@ -23,24 +26,33 @@ class Contig {
     }
 
     getBuffer() {
-        let buffer = new OffscreenCanvas(this.scale(this.length), 20);
-        let ctx = buffer.getContext('2d');
+        let scaleX = 1 / this.viewer.basesPerPixel;
+        let layer = DrawingProxy(this.length, 20, scaleX);
 
-        // draw background
-        ctx.beginPath();
-        ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-        ctx.rect(0, 3, this.scale(this.length), 10);
-        ctx.fill();
+        // Background
+        d.rectangle({
+            fill: true,
+            x: 0,
+            y: 3,
+            width: (scaleX) => { scale * this.length },
+            height: 10,
+            fillStyle: 'rgba(0, 0, 0, 0.2)'
+        })
 
         // draw genes
         this.genes.forEach((gene) => {
-            let start = this.scale(gene.start);
-            let width = this.scale(gene.stop - gene.start);
+            let start = d.scaleX(gene.start);
+            let width = d.scaleX(gene.stop - gene.start);
 
             let triangleWidth = (width >= 10) ? 10 : width;
 
-            ctx.beginPath();
-            ctx.fillStyle = "#F9A520";
+            draw.path({
+                'fill': true,
+                'fillStyle': '#F9A520',
+                'points': [{'x': start, 'y': 3}],
+                'flipX': (gene.direction == 'r') ? true : false
+            })
+
 
             if (width > 4) {
                 // draw arrow head
@@ -69,8 +81,10 @@ class Contig {
             ctx.fill();
         });
 
-        return buffer;
+        return d;
     }
 }
 
-export { Contig };
+export {
+    Contig
+};
