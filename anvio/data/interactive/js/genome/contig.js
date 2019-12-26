@@ -25,63 +25,62 @@ class Contig {
         return parseInt(point / this.viewer.basesPerPixel);
     }
 
-    getBuffer() {
-        let scaleX = 1 / this.viewer.basesPerPixel;
-        let layer = DrawingProxy(this.length, 20, scaleX);
+    getLayers() {
+        let layer = new Layer(this.length, 20)
 
         // Background
-        d.rectangle({
+        layer.rectangle({
             fill: true,
             x: 0,
             y: 3,
-            width: (scaleX) => { scale * this.length },
+            width: this.length,
             height: 10,
             fillStyle: 'rgba(0, 0, 0, 0.2)'
         })
 
         // draw genes
         this.genes.forEach((gene) => {
-            let start = d.scaleX(gene.start);
-            let width = d.scaleX(gene.stop - gene.start);
+            let start = gene.start
+            let width = gene.stop - gene.start
 
-            let triangleWidth = (width >= 10) ? 10 : width;
+            let triangleWidth = (width >= 10) ? 10 : width
 
-            draw.path({
-                'fill': true,
-                'fillStyle': '#F9A520',
-                'points': [{'x': start, 'y': 3}],
-                'flipX': (gene.direction == 'r') ? true : false
-            })
+            /*            draw.path({
+                            'fill': true,
+                            'fillStyle': '#F9A520',
+                            'points': [{'x': start, 'y': 3}],
+                            'flipX': (gene.direction == 'r') ? true : false
+                        })*/
 
+            /*
+                        if (width > 4) {
+                            // draw arrow head
+                            if (gene.direction == 'f') {
+                                ctx.moveTo(start + width - triangleWidth, 0);
+                                ctx.lineTo(start + width, 8);
+                                ctx.lineTo(start + width - triangleWidth, 16);
+                            } else {
+                                ctx.moveTo(start + triangleWidth, 0);
+                                ctx.lineTo(start, 8);
+                                ctx.lineTo(start + triangleWidth, 16);
+                            }
+                        } else {
+                            // only rectangle
+                            ctx.rect(start, 3, width, 10);
+                        }
 
-            if (width > 4) {
-                // draw arrow head
-                if (gene.direction == 'f') {
-                    ctx.moveTo(start + width - triangleWidth, 0);
-                    ctx.lineTo(start + width, 8);
-                    ctx.lineTo(start + width - triangleWidth, 16);
-                } else {
-                    ctx.moveTo(start + triangleWidth, 0);
-                    ctx.lineTo(start, 8);
-                    ctx.lineTo(start + triangleWidth, 16);
-                }
-            } else {
-                // only rectangle
-                ctx.rect(start, 3, width, 10);
-            }
-
-            // draw rectangle near arrow head if there is space
-            if (width - triangleWidth > 0) {
-                if (gene.direction == 'f') {
-                    ctx.rect(start, 3, width - triangleWidth, 10);
-                } else {
-                    ctx.rect(start + triangleWidth, 3, width - triangleWidth, 10);
-                }
-            }
-            ctx.fill();
+                        // draw rectangle near arrow head if there is space
+                        if (width - triangleWidth > 0) {
+                            if (gene.direction == 'f') {
+                                ctx.rect(start, 3, width - triangleWidth, 10);
+                            } else {
+                                ctx.rect(start + triangleWidth, 3, width - triangleWidth, 10);
+                            }
+                        }
+                        ctx.fill();*/
         });
 
-        return d;
+        return layer
     }
 }
 

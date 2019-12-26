@@ -4,43 +4,80 @@ class Layer {
         this.height = height
 
         this.objects = []
-        ['rectangle', 'line', 'path'].forEach((currentType) => {
-            this[currentType] = (params) => {
+        this.knownShapes = ['rectangle', 'line', 'path']
+
+        this.knownShapes.forEach((currentShape) => {
+            // This creates member functions like Layer.rectangle()
+            this[currentShape] = (params) => {
                 this.objects.push({
-                    type: currentType,
+                    shape: currentShape,
                     params: params
                 })
             }
         })
     }
-
-
 }
 
+
 class RenderCanvas {
-    constructor(layer, scaleX = 1, scaleY = 1) {
-        this.layer = layer;
-        this.xScale = (num) => num * scaleX;
-        this.yScale = (num) => num * scaleY;
+    constructor(layer, xScale = 1, yScale = 1) {
+        this.layer = layer
+        this.xScale = xScale
+        this.yScale = yScale
     }
 
+    scale(params, key) {
+        let xScaleKeys = new Set(['x', 'width'])
+        let yScaleKeys = new Set(['y', 'height'])
+
+        if (!params.hasOwnAttribute(key)) {
+            throw `Unknown parameter key ${key}.`
+        }
+
+        callOrScale = (thing, scale) => {
+            if (thing instanceof Function) {
+                return thing(scale)
+            }
+            return thing * scale;
+        }
+
+        if (xScaleKeys.has(key)) {
+            return callOrScale(params.key, this.xScale)
+        }
+
+        if (yScaleKeys.has(key)) {
+            return callOrScale(params.key, this.yScale)
+        }
+
+        return params.key
+    }
+
+
     getBuffer() {
+        params.has = key => params.hasOwnAttribute(key)
+        params.get = key => this.scale(params, key)
+
         let buffer = new OffscreenCanvas(this.layer.width, this.layer.height)
         let ctx = buffer.getContext('2d')
 
 
-
-        for ({ type, params } of this.layer.objects) {
+        for ({ shape, params } of this.layer.objects) {
             ctx.beginPath()
 
-            if (type == 'rectangle') {
-                ctx.rect(params.x, 
-                         params.y, this.scale(this.length), 10)
-            } 
+            if (shape == 'rectangle') {
+                ctx.rect(params.get('x'),
+                         params.get('y'),
+                         params.get('width'),
+                         params.get('height'))
+            }
 
-        ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-                
-        ctx.fill();
+            if (params.has('fillStyle'))
+                ctx.fillStyle = params.fillStyle
+
+            if (params.has('fill') && params.fill) {
+                ctx.fill()
+            } else {
+                ctx.stroke()
             }
         }
     }

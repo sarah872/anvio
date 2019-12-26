@@ -1,5 +1,6 @@
 import { GenomeTrack } from './genomeTrack.js';
 import { TreeDrawer } from './treeDrawer.js';
+import { RenderCanvas } from './drawing.js';
 
 
 class GenomeViewer {
@@ -112,7 +113,7 @@ class GenomeViewer {
             this.buffers = [];
 
             this.genomeTracks.forEach((track) => {
-                this.buffers.push(track.getBuffer());
+                this.buffers.push(new RenderCanvas(track.getLayer()));
             });
 
             this.needsRedraw = false;

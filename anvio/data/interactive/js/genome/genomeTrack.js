@@ -26,12 +26,12 @@ class GenomeTrack {
         this.contigs.push(contig);
     }
 
-    getBuffer() {
-        let canvas;
+    getLayers() {
+        let layers
         this.contigs.forEach((contig) => {
-            canvas = contig.getBuffer();
+            layers.push(contig.getLayer())
         });
-        return canvas;
+        return layers
     }
 }
 
