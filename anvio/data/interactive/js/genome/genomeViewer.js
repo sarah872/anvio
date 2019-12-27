@@ -1,6 +1,12 @@
-import { GenomeTrack } from './genomeTrack.js';
-import { TreeDrawer } from './treeDrawer.js';
-import { RenderCanvas } from './drawing.js';
+import {
+    GenomeTrack
+} from './genomeTrack.js';
+import {
+    TreeDrawer
+} from './treeDrawer.js';
+import {
+    RenderCanvas
+} from './drawing.js';
 
 
 class GenomeViewer {
@@ -35,7 +41,7 @@ class GenomeViewer {
         this.bindEvents();
 
         this.needsRedraw = true;
-        this.buffers = [];
+        this.layers = [];
     }
 
     /*
@@ -80,7 +86,7 @@ class GenomeViewer {
 
     handleWheel(event) {
         let deltaTime = Date.now() - this.lastScrollTime;
-        
+
         if (deltaTime > 10) {
             this.centerPos -= event.deltaX * 4;
             this.lastScrollTime = Date.now();
@@ -103,25 +109,26 @@ class GenomeViewer {
         let ctx = this.context;
 
         ctx.save();
-        ctx.setTransform(1,0,0,1,0,0);
-        ctx.clearRect(0,0, this.width, this.height);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, this.width, this.height);
         ctx.restore();
     }
 
     draw() {
         if (this.needsRedraw) {
-            this.buffers = [];
+            this.layers = [];
 
             this.genomeTracks.forEach((track) => {
-                this.buffers.push(new RenderCanvas(track.getLayer()));
+                this.layers.push(track.getLayers());
             });
 
-            this.needsRedraw = false;
+            //this.needsRedraw = false;
         }
 
         this.clear();
-        this.buffers.forEach((buffer, order) => {
-            this.context.drawImage(buffer, this.centerPos, 10 + 40 * order);
+        this.layers.forEach((layer, order) => {
+            let render = new RenderCanvas(layer)
+            this.context.drawImage(render.getBuffer(), this.centerPos, 10 + 40 * order);
         });
 
         if (this.hasTree) {
@@ -131,15 +138,14 @@ class GenomeViewer {
             if (this.centerPos <= 200 && this.centerPos >= 100) {
                 treeWidth = this.centerPos;
                 padding = 5;
-            }
-            else if (this.centerPos < 100) {
+            } else if (this.centerPos < 100) {
                 treeWidth = 100;
-                padding = 5;   
+                padding = 5;
             }
 
             let tree = new TreeDrawer(this, this.order, treeWidth, padding);
             this.context.clearRect(0, 0, treeWidth, this.height);
-            this.context.drawImage(tree.getBuffer(), 0, 0);            
+            this.context.drawImage(tree.getBuffer(), 0, 0);
         }
 
         /*
@@ -157,10 +163,10 @@ class GenomeViewer {
     /*
         Data access
     */
-    
+
     getGenomeTrack(genomeName) {
         let track = this.genomeTracks.find((track) => track.name == genomeName);
-        
+
         if (typeof track === 'undefined') {
             track = new GenomeTrack(this, genomeName);
             this.genomeTracks.push(track);
@@ -191,5 +197,6 @@ class GenomeViewer {
     }
 }
 
-export { GenomeViewer };
-
+export {
+    GenomeViewer
+};

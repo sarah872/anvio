@@ -10,8 +10,8 @@ class Layer {
             // This creates member functions like Layer.rectangle()
             this[currentShape] = (params) => {
                 this.objects.push({
-                    shape: currentShape,
-                    params: params
+                    'shape': currentShape,
+                    'params': params
                 })
             }
         })
@@ -26,60 +26,38 @@ class RenderCanvas {
         this.yScale = yScale
     }
 
-    scale(params, key) {
-        let xScaleKeys = new Set(['x', 'width'])
-        let yScaleKeys = new Set(['y', 'height'])
-
-        if (!params.hasOwnAttribute(key)) {
-            throw `Unknown parameter key ${key}.`
-        }
-
-        callOrScale = (thing, scale) => {
-            if (thing instanceof Function) {
-                return thing(scale)
-            }
-            return thing * scale;
-        }
-
-        if (xScaleKeys.has(key)) {
-            return callOrScale(params.key, this.xScale)
-        }
-
-        if (yScaleKeys.has(key)) {
-            return callOrScale(params.key, this.yScale)
-        }
-
-        return params.key
-    }
-
-
     getBuffer() {
-        params.has = key => params.hasOwnAttribute(key)
-        params.get = key => this.scale(params, key)
+        const xS = (val) => val * this.xScale
+        const yS = (val) => val * this.yScale
 
-        let buffer = new OffscreenCanvas(this.layer.width, this.layer.height)
-        let ctx = buffer.getContext('2d')
+        const buffer = new OffscreenCanvas(this.layer.width, this.layer.height)
+        const ctx = buffer.getContext('2d')
 
+        for (const obj of this.layer.objects) {
+            let shape = obj.shape
+            let params = obj.params
 
-        for ({ shape, params } of this.layer.objects) {
             ctx.beginPath()
 
             if (shape == 'rectangle') {
-                ctx.rect(params.get('x'),
-                         params.get('y'),
-                         params.get('width'),
-                         params.get('height'))
+                ctx.rect(xS(params.x),
+                    yS(params.y),
+                    xS(params.width),
+                    yS(params.height))
             }
 
-            if (params.has('fillStyle'))
+            if (params.hasOwnProperty('fillStyle')) {
                 ctx.fillStyle = params.fillStyle
+            }
 
-            if (params.has('fill') && params.fill) {
+            if (params.hasOwnProperty('fill') && params.fill) {
                 ctx.fill()
             } else {
                 ctx.stroke()
             }
         }
+
+        return buffer
     }
 }
 
