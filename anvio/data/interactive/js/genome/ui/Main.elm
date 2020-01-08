@@ -1,7 +1,10 @@
 module Main exposing (..)
 
 import Browser
+import Http
 import Loader exposing (fetchData)
+import Messages exposing (..)
+import Model exposing (Model, emptyModel)
 import Plot exposing (plotData)
 
 
@@ -19,23 +22,13 @@ main =
         }
 
 
-type Msg
-    = Loading
-    | DataReceived (Result Http.Error (List Contig))
-    | Drawing
-    | Done
-
-
 
 -- INIT
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { contigs = []
-      , error = Nothing
-      , basesPerPixel = 1000
-      }
+    ( emptyModel
     , Loading
     )
 

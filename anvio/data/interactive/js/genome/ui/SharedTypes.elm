@@ -1,4 +1,4 @@
-module Main exposing (Contig, Gene)
+module SharedTypes exposing (..)
 
 
 type alias Contig =
@@ -7,7 +7,6 @@ type alias Contig =
     , gc_content : Float
     , num_splits : Int
     , genome_name : String
-    , genes : List Gene
     }
 
 
@@ -15,8 +14,8 @@ type alias Gene =
     { gene_callers_id : Int
     , start : Int
     , stop : Int
-    , direction : Direction
     , partial : Int
+    , direction : Direction
     }
 
 
@@ -28,4 +27,11 @@ type Direction
 type alias Point =
     { x : Float
     , y : Float
+    }
+
+
+type alias Path =
+    { points : List Point
+    , color : Maybe String
+    , fill : Bool
     }

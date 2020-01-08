@@ -1,18 +1,16 @@
 module Plot exposing (plotData)
 
-import Html exposing (Attribute, Html, div, input, text)
-import SharedTypes exposing (Contig, Gene, Point)
-import Svg exposing (..)
-import Svg.Attributes exposing (..)
+import Messages exposing (Msg)
+import Model exposing (Model)
+import SharedTypes exposing (Contig, Direction(..), Gene, Path)
 
 
-plotData : Model -> List Gene -> Html Msg
-plotData genes =
-    div []
-        []
+plotData : Model -> List Path
+plotData model =
+    []
 
 
-genGenePath : Gene -> List Point
+genGenePath : Gene -> Path
 genGenePath gene =
     let
         startPos =

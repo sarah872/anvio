@@ -1,7 +1,15 @@
-module Main exposing (fetchData)
+module Loader exposing (fetchData)
 
-import Json.Decode as JD exposing (Decoder, field, float, int, list, string)
-import SharedTypes exposing (Contig, Direction, Gene)
+{- Note: Msg(..) imports all Message variant types -}
+
+import Http
+import Json.Decode as JD exposing (Decoder, andThen, fail, field, float, int, list, string, succeed)
+import Messages exposing (Msg(..))
+import SharedTypes exposing (..)
+
+
+host =
+    "http://localhost:8080"
 
 
 fetchData : Cmd Msg
@@ -12,9 +20,8 @@ fetchData =
         }
 
 
-contigListDecoder : Decoder (List Contig)
-contigListDecoder =
-    list contigDecoder
+
+{- Parse contig data -}
 
 
 contigDecoder : Decoder Contig
@@ -27,6 +34,15 @@ contigDecoder =
         (field "genome_name" string)
 
 
+contigListDecoder : Decoder (List Contig)
+contigListDecoder =
+    list contigDecoder
+
+
+
+{- Parse gene data -}
+
+
 geneListDecoder : Decoder (List Gene)
 geneListDecoder =
     list geneDecoder
@@ -34,26 +50,26 @@ geneListDecoder =
 
 geneDecoder : Decoder Gene
 geneDecoder =
-    JD.map5 Contig
+    JD.map5 Gene
         (field "gene_callers_id" int)
         (field "start" int)
         (field "stop" int)
         (field "patial" int)
-        (field "direction" decodeDirection)
+        (field "direction" directionDecoder)
 
 
 directionDecoder : Decoder Direction
 directionDecoder =
-    Decode.string
-        |> Decode.andThen
+    string
+        |> andThen
             (\str ->
                 case str of
                     "f" ->
-                        Decode.succeed Forward
+                        succeed Forward
 
                     "r" ->
-                        Decode.succeed Reverse
+                        succeed Reverse
 
                     somethingElse ->
-                        Decode.fail <| "Unknown direction: " ++ somethingElse
+                        fail <| "Unknown direction: " ++ somethingElse
             )
