@@ -33,5 +33,14 @@ type alias Point =
 type alias Path =
     { points : List Point
     , color : Maybe String
-    , fill : Bool
+    , fill : Maybe Bool
     }
+
+
+newPath : List Point -> Path
+newPath points color fill =
+    { points = points
+    , color = Maybe.withDefault color "#000000"
+    , fill = Maybe.withDefault fill True
+    }
+
