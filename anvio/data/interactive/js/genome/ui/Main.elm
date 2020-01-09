@@ -6,6 +6,7 @@ import Loader exposing (fetchData)
 import Messages exposing (..)
 import Model exposing (Model, emptyModel)
 import Plot exposing (plotData)
+import Set
 
 
 
@@ -58,8 +59,13 @@ update msg model =
             ( model, fetchData )
 
         DataReceived (Ok contigs) ->
+            let
+                genomes =
+                    Set.fromList (List.map .genome_name contigs)
+            in
             ( { model
                 | contigs = contigs
+                , genomes = genomes
               }
             , plotData
             )
