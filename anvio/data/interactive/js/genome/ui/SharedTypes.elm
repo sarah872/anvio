@@ -44,3 +44,18 @@ newPath points color fill =
     , fill = Maybe.withDefault fill True
     }
 
+
+flipPathX : Path -> Path
+flipPathX path =
+    let
+        allX =
+            List.map .x path.points
+
+        max =
+            maximum allX
+
+        min =
+            minimum allX
+    in
+    {- TO DO: Actually flip it -}
+    path

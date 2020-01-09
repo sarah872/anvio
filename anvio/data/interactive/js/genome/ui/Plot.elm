@@ -15,13 +15,20 @@ genGenePath gene =
     let
         startPos =
             gene.start
+
+        genePath =
+            newPath
+                [ { x = 0, y = 0 }
+                , { x = 10, y = 10 }
+                , { x = 10, y = 15 }
+                ]
     in
     case gene.direction of
         Forward ->
-            "M0,0 L0,6 L9,3 z"
+            genePath
 
         Reverse ->
-            "M0,0 L0,6 L9,3 z"
+            flipPathX genePath
 
 
 
