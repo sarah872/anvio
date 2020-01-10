@@ -27,8 +27,8 @@ main =
 -- INIT
 
 
-init : ( Model, Cmd Msg )
-init =
+init : () -> ( Model, Cmd Msg )
+init _ =
     ( emptyModel
     , Loading
     )
@@ -67,7 +67,7 @@ update msg model =
 
         DataReceived (Err httpError) ->
             ( { model
-                | error = Debug.toString httpError
+                | error = Just (Debug.toString httpError)
               }
             , Cmd.none
             )
