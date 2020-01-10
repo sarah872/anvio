@@ -32,30 +32,12 @@ type alias Point =
 
 type alias Path =
     { points : List Point
-    , color : Maybe String
-    , fill : Maybe Bool
+    , color : String
+    , fill : Bool
     }
 
 
-newPath : List Point -> Path
-newPath points color fill =
-    { points = points
-    , color = Maybe.withDefault color "#000000"
-    , fill = Maybe.withDefault fill True
+type alias Layer =
+    { paths : List Path
+    , zindex : Maybe Int
     }
-
-
-flipPathX : Path -> Path
-flipPathX path =
-    let
-        allX =
-            List.map .x path.points
-
-        max =
-            maximum allX
-
-        min =
-            minimum allX
-    in
-    {- TO DO: Actually flip it -}
-    path

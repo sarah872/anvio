@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Browser
-import Http
+import Html exposing (Html)
 import Loader exposing (fetchData)
 import Messages exposing (..)
 import Model exposing (Model, emptyModel)
@@ -40,12 +40,7 @@ init =
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ text model.error
-        , ul
-            []
-            (List.map (\x -> text x.name) model.contigs)
-        ]
+    plotData model
 
 
 
