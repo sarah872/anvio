@@ -1,11 +1,12 @@
 module Model exposing (Model, emptyModel)
 
+import Set
 import SharedTypes exposing (Contig)
 
 
 type alias Model =
     { contigs : List Contig
-    , genomes : List String
+    , genomes : Set String
     , error : Maybe String
     , basesPerPixel : Float
     }

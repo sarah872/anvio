@@ -56,7 +56,7 @@ update msg model =
         DataReceived (Ok contigs) ->
             let
                 genomes =
-                    Set.fromList (List.map .genome_name contigs)
+                    Set.insert .genome_name contigs
             in
             ( { model
                 | contigs = contigs
