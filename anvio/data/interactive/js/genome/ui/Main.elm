@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html)
+import Html exposing (..)
 import Loader exposing (fetchData)
 import Messages exposing (..)
 import Model exposing (Model, emptyModel)
@@ -40,7 +40,15 @@ init _ =
 
 view : Model -> Html Msg
 view model =
-    plotData model
+    case model.error of
+        Nothing ->
+            plotData model
+
+        Just errorMessage ->
+            div []
+                [ h2 []
+                    [ text ("Error: " ++ errorMessage) ]
+                ]
 
 
 
