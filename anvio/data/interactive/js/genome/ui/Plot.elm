@@ -9,28 +9,38 @@ import Svg.Attributes exposing (..)
 
 plotData : Model -> Svg msg
 plotData model =
-    svg []
+    svg
+        [ width "100%"
+        , height "100%"
+        ]
         [ g
             []
-            (List.map genContigBackground model.contigs)
+            (List.indexedMap
+                (\i contig ->
+                    drawContigBackground model contig i
+                )
+                model.contigs
+            )
         ]
 
 
-genContigBackground : Contig -> Svg msg
-genContigBackground contig =
+drawContigBackground : Model -> Contig -> Int -> Svg msg
+drawContigBackground model contig index =
     rect
         [ x "0"
-        , y "0"
+        , y (String.fromInt (index * (model.params.contigBarHeight + model.params.gap)))
         , width (String.fromInt contig.length)
-        , height "40"
-        , fill "green"
-        , stroke "black"
-        , strokeWidth "2"
+        , height (String.fromInt model.params.contigBarHeight)
+        , fill "lightgray"
+        , strokeWidth "0"
         ]
         []
 
 
 
+-- genContigBackground : Contig -> Svg msg
+-- genContigBackground contig index model =
+--
 --
 -- genGenePath : Gene -> Path
 -- genGenePath gene =
