@@ -1,6 +1,7 @@
 module Model exposing (Model, emptyModel)
 
-import Set
+import Http exposing (..)
+import Set exposing (..)
 import SharedTypes exposing (Contig)
 
 
@@ -14,7 +15,7 @@ type alias Model =
 
 emptyModel =
     { contigs = []
-    , genomes = []
+    , genomes = Set.empty
     , error = Nothing
     , basesPerPixel = 1000.0
     }

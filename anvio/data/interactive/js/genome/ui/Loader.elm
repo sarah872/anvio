@@ -2,7 +2,7 @@ module Loader exposing (fetchData)
 
 {- Note: Msg(..) imports all Message variant types -}
 
-import Http
+import Http exposing (..)
 import Json.Decode as JD exposing (Decoder, andThen, fail, field, float, int, list, string, succeed)
 import Messages exposing (Msg(..))
 import SharedTypes exposing (..)

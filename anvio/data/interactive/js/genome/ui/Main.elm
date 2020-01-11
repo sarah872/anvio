@@ -3,10 +3,10 @@ module Main exposing (..)
 import Browser
 import Html exposing (..)
 import Loader exposing (fetchData)
-import Messages exposing (..)
+import Messages exposing (Msg(..))
 import Model exposing (Model, emptyModel)
 import Plot exposing (plotData)
-import Set
+import Set exposing (..)
 
 
 
@@ -30,7 +30,7 @@ main =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( emptyModel
-    , Loading
+    , fetchData
     )
 
 
@@ -58,19 +58,12 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Loading ->
-            ( model, fetchData )
-
         DataReceived (Ok contigs) ->
-            let
-                genomes =
-                    Set.insert .genome_name contigs
-            in
             ( { model
                 | contigs = contigs
-                , genomes = genomes
+                , genomes = Set.fromList (List.map .genome_name contigs)
               }
-            , plotData
+            , Cmd.none
             )
 
         DataReceived (Err httpError) ->
@@ -79,6 +72,3 @@ update msg model =
               }
             , Cmd.none
             )
-
-        Drawing ->
-            ( model, Cmd.none )

@@ -1,11 +1,8 @@
-module Messages exposing (..)
+module Messages exposing (Msg(..))
 
-import Http
+import Http exposing (..)
 import SharedTypes exposing (Contig)
 
 
 type Msg
-    = Loading
-    | DataReceived (Result Http.Error (List Contig))
-    | Drawing
-    | Done
+    = DataReceived (Result Http.Error (List Contig))

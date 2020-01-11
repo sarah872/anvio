@@ -1,7 +1,6 @@
 module Plot exposing (plotData)
 
 import Html exposing (Html)
-import Messages exposing (Msg)
 import Model exposing (Model)
 import SharedTypes exposing (Contig, Direction(..), Gene, Path, Point)
 import Svg exposing (..)
