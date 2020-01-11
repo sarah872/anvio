@@ -4,7 +4,7 @@ import Browser
 import Html exposing (..)
 import Loader exposing (fetchData)
 import Messages exposing (Msg(..))
-import Model exposing (Model, emptyModel)
+import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
 
@@ -29,7 +29,7 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( emptyModel
+    ( defaultModel
     , fetchData
     )
 

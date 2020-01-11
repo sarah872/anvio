@@ -1,4 +1,4 @@
-module Model exposing (Model, emptyModel)
+module Model exposing (Model, defaultModel)
 
 import Http exposing (..)
 import Set exposing (..)
@@ -13,7 +13,7 @@ type alias Model =
     }
 
 
-emptyModel =
+defaultModel =
     { contigs = []
     , genomes = Set.empty
     , error = Nothing
