@@ -1,7 +1,7 @@
 module Messages exposing (Msg(..))
 
 import Http exposing (..)
-import SharedTypes exposing (Contig)
+import Types exposing (Contig)
 
 
 type Msg

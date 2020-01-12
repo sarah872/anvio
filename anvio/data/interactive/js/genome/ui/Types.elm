@@ -15,10 +15,5 @@ type alias Gene =
     , start : Int
     , stop : Int
     , partial : Int
-    , direction : Direction
+    , direction : Maybe String
     }
-
-
-type Direction
-    = Forward
-    | Reverse

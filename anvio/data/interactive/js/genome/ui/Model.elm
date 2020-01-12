@@ -2,7 +2,7 @@ module Model exposing (Model, defaultModel)
 
 import Http exposing (..)
 import Set exposing (..)
-import SharedTypes exposing (Contig)
+import Types exposing (Contig)
 
 
 type alias Model =

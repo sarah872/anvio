@@ -5,7 +5,7 @@ module Loader exposing (fetchData)
 import Http exposing (..)
 import Json.Decode as JD exposing (Decoder, andThen, fail, field, float, int, list, string, succeed)
 import Messages exposing (Msg(..))
-import SharedTypes exposing (..)
+import Types exposing (..)
 
 
 host =
@@ -15,7 +15,7 @@ host =
 fetchData : Cmd Msg
 fetchData =
     Http.get
-        { url = host ++ "/data/get_contigs"
+        { url = host ++ "/data/get_neighbors"
         , expect = Http.expectJson DataReceived contigListDecoder
         }
 
@@ -55,21 +55,4 @@ geneDecoder =
         (field "start" int)
         (field "stop" int)
         (field "patial" int)
-        (field "direction" directionDecoder)
-
-
-directionDecoder : Decoder Direction
-directionDecoder =
-    string
-        |> andThen
-            (\str ->
-                case str of
-                    "f" ->
-                        succeed Forward
-
-                    "r" ->
-                        succeed Reverse
-
-                    somethingElse ->
-                        fail <| "Unknown direction: " ++ somethingElse
-            )
+        (field "direction" string)

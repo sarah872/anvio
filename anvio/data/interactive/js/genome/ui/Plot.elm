@@ -2,9 +2,9 @@ module Plot exposing (plotData)
 
 import Html exposing (Html)
 import Model exposing (Model)
-import SharedTypes exposing (Contig, Direction(..), Gene, Path, Point)
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
+import Types exposing (Contig, Gene, Path, Point)
 
 
 plotData : Model -> Svg msg
