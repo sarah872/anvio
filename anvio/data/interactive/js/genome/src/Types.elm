@@ -15,5 +15,5 @@ type alias Gene =
     , start : Int
     , stop : Int
     , partial : Int
-    , direction : Maybe String
+    , direction : String
     }

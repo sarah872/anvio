@@ -4,7 +4,8 @@ import Html exposing (Html)
 import Model exposing (Model)
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
-import Types exposing (Contig, Gene, Path, Point)
+import Svg.Keyed as Keyed exposing (..)
+import Types exposing (Contig, Gene)
 
 
 plotData : Model -> Svg msg
@@ -13,24 +14,29 @@ plotData model =
         [ width "100%"
         , height "100%"
         ]
-        [ g
-            []
-            (List.indexedMap
-                (\i contig ->
-                    drawContigBackground model contig i
-                )
-                model.contigs
-            )
-        ]
+        []
 
 
-drawContigBackground : Model -> Contig -> Int -> Svg msg
-drawContigBackground model contig index =
+
+-- Svg.map
+-- (\contig ->
+--     Keyed.node "g"
+--         []
+--         ( contig.name, [ genContigBackgrounds model contig ] )
+-- )
+-- model.contigs
+
+
+genContigBackgrounds : Model -> Contig -> Svg msg
+genContigBackgrounds model contig =
     rect
         [ x "0"
-        , y (String.fromInt (index * (model.params.contigBarHeight + model.params.gap)))
+        , y
+            (String.fromInt
+                (1 * (model.contigBarHeight + model.gap))
+            )
         , width (String.fromInt contig.length)
-        , height (String.fromInt model.params.contigBarHeight)
+        , height (String.fromInt model.contigBarHeight)
         , fill "lightgray"
         , strokeWidth "0"
         ]
@@ -38,6 +44,20 @@ drawContigBackground model contig index =
 
 
 
+--
+-- genGeneArrows : Model -> Contig -> Int -> Svg msg
+-- genGeneArrows model contig index =
+--     List.map
+--         (\_ ->
+--             polyline []
+--                 []
+--         )
+--         (List.filter
+--             (\_ ->
+--                 False
+--             )
+--             model.genes
+--         )
 -- genContigBackground : Contig -> Svg msg
 -- genContigBackground contig index model =
 --

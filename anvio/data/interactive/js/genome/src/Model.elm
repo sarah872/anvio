@@ -9,9 +9,8 @@ type alias Model =
     { contigs : List Contig
     , genomes : Set String
     , error : Maybe String
+    , scaleX : Float
     , screenCenterAsBasePos : Float
-    , contigOffset : Float
-    , basesPerPixel : Int
     , contigBarHeight : Int
     , gap : Int
     }
@@ -21,8 +20,8 @@ defaultModel =
     { contigs = []
     , genomes = Set.empty
     , error = Nothing
+    , scaleX = 10000.0
     , screenCenterAsBasePos = 0.0
-    , scaleX = 10000
     , contigBarHeight = 20
     , gap = 5
     }
