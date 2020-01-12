@@ -1,4 +1,4 @@
-module SharedTypes exposing (..)
+module Types exposing (..)
 
 
 type alias Contig =
