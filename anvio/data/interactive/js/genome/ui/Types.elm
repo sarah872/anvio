@@ -22,22 +22,3 @@ type alias Gene =
 type Direction
     = Forward
     | Reverse
-
-
-type alias Point =
-    { x : Float
-    , y : Float
-    }
-
-
-type alias Path =
-    { points : List Point
-    , color : String
-    , fill : Bool
-    }
-
-
-type alias Layer =
-    { paths : List Path
-    , zindex : Maybe Int
-    }
