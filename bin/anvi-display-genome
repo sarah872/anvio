@@ -1,21 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8
 """"""
-
+import os
 import sys
 import argparse
 
 import anvio
 import anvio.utils as utils
 import anvio.terminal as terminal
-import anvio.genomeviewer as genomeviewer
-from anvio.bottleroutes import BottleApplication
 
+import anvio.interactive_ as interactive
 
 from anvio.errors import ConfigError, FilesNPathsError, DictIOError, HDF5Error
 
 run = terminal.Run()
 progress = terminal.Progress()
+
+AbsolutePath = lambda x: os.path.abspath()
+Exist = lambda x: os.path.exists()
+Join = lambda *x: os.path.join(x)
+
 
 if __name__ == '__main__':
     # setup the command line user interface
@@ -26,18 +30,27 @@ if __name__ == '__main__':
 
     groupA.add_argument(*anvio.A('pan-db'), **anvio.K('pan-db'))
     groupA.add_argument(*anvio.A('genomes-storage'), **anvio.K('genomes-storage', {'required': False}))
-    groupA.add_argument(*anvio.A('gene-caller-id'), **anvio.K('gene-caller-id'))
     groupP.add_argument(*anvio.A('ip-address'), **anvio.K('ip-address'))
     groupP.add_argument(*anvio.A('port-number'), **anvio.K('port-number'))
 
     args = anvio.get_args(parser)
 
     try:
-        d = genomeviewer.GenomeViewer(args)
         args.port_number = utils.get_port_num(args.port_number, args.ip_address, run=run)
+        GetOrNone = lambda x: args.__dict__[x] if x in args.__dict__ else None
+        pan_db_path = GetOrNone('pan_db')
+        genomes_storage_path = GetOrNone('genomes_storage')
+        project_path = GetOrNone('project')
 
-        app = BottleApplication(d)
-        app.run_application(args.ip_address, args.port_number)
+        app_server = interactive.ElmApp(project = 'project.json',
+                                        app = Join(Dirname(anvio.__file__), 'interactive_/genome'),
+                                        ip_address = args.ip_address,
+                                        port = args.port,
+                                        debug = anvio.DEBUG)
+
+        app_server.listen(ip=GetArg('ip_adress'),
+                          port=GetArg('port_number'))
+
 
     except ConfigError as e:
         print(e)
