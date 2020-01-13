@@ -19,3 +19,4 @@ snakemake==5.2.4
 colored==1.3.93
 illumina-utils==2.6
 tabulate==0.8.3
+falcon==2.0.0
