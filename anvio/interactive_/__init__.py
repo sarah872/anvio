@@ -20,13 +20,28 @@ run = terminal.Run()
 pp = terminal.pretty_print
 
 
-AbsolutePath = lambda x: os.path.abspath()
-Exist = lambda x: os.path.exists()
+AbsolutePath = lambda x: os.path.abspath(x)
+Exist = lambda x: os.path.exists(x)
 Join = lambda *x: os.path.join(x)
 Dirname = lambda x: os.path.dirname(x)
 
+
+class RequestHandler():
+    def on_get(self, req, resp):
+        self.build()
+        resp.status = falcon.HTTP_200
+        resp.content_type = 'text/html'
+        with open('index.html', 'r') as f:
+            resp.body = f.read()
+
+
+    def on_post(self, req, resp):
+        # Here we can implement write, update operations, later.
+        pass
+
+
 class ElmApp():
-    def __init__(self, flags = None,
+    def __init__(self, project = None,
                        app = None,
                        main = 'src/Main.elm',
                        dist = 'dist/main.js',
@@ -60,19 +75,7 @@ class ElmApp():
                                               self.main,
                                               self.dist))
 
-    def on_get(self, req, resp):
-        self.build()
-        resp.status = falcon.HTTP_200
-        resp.content_type = 'text/html'
-        with open('index.html', 'r') as f:
-            resp.body = f.read()
-
-
-    def on_post(self, req, resp):
-        # Here we can implement write, update operations, later.
-
-
-    def load_flags(self, path_arg):
+    def load_project_flags(self, project_spec_file):
         default = {
             "name": "Unnamed Project",
             "version": anvio.__version__,

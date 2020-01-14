@@ -10,15 +10,17 @@ import anvio.utils as utils
 import anvio.terminal as terminal
 
 import anvio.interactive_ as interactive
+import anvio.interactive_.genome as genome_viewer
 
 from anvio.errors import ConfigError, FilesNPathsError, DictIOError, HDF5Error
 
 run = terminal.Run()
 progress = terminal.Progress()
 
-AbsolutePath = lambda x: os.path.abspath()
-Exist = lambda x: os.path.exists()
+AbsolutePath = lambda x: os.path.abspath(x)
+Exist = lambda x: os.path.exists(x)
 Join = lambda *x: os.path.join(x)
+Dirname = lambda x: os.path.dirname(x)
 
 
 if __name__ == '__main__':
@@ -28,7 +30,7 @@ if __name__ == '__main__':
     groupA = parser.add_argument_group('INPUT FILES', "Input files from the pangenome analysis.")
     groupP = parser.add_argument_group("SERVER CONFIGURATION", "For power users.")
 
-    groupA.add_argument(*anvio.A('pan-db'), **anvio.K('pan-db'))
+    groupA.add_argument(*anvio.A('pan-db'), **anvio.K('pan-db', {'required': False}))
     groupA.add_argument(*anvio.A('genomes-storage'), **anvio.K('genomes-storage', {'required': False}))
     groupP.add_argument(*anvio.A('ip-address'), **anvio.K('ip-address'))
     groupP.add_argument(*anvio.A('port-number'), **anvio.K('port-number'))
@@ -43,10 +45,7 @@ if __name__ == '__main__':
         project_path = GetOrNone('project')
 
         app_server = interactive.ElmApp(project = 'project.json',
-                                        app = Join(Dirname(anvio.__file__), 'interactive_/genome'),
-                                        ip_address = args.ip_address,
-                                        port = args.port,
-                                        debug = anvio.DEBUG)
+                                        app = Dirname(genome_viewer.__file__))
 
         app_server.listen(ip=GetArg('ip_adress'),
                           port=GetArg('port_number'))
