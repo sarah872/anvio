@@ -12,9 +12,10 @@ import anvio.terminal as terminal
 import anvio.filesnpaths as filesnpaths
 
 from anvio import utils as u
-from anvio.errors import ConfigError, FilesNPathsError
+from anvio.drivers import driver_modules
 from anvio.workflows import WorkflowSuperClass
 from anvio.workflows.contigs import ContigsDBWorkflow
+from anvio.errors import ConfigError, FilesNPathsError
 
 
 __author__ = "Developers of anvi'o (see AUTHORS.txt)"
@@ -35,12 +36,12 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
     def __init__(self, args=None, run=terminal.Run(), progress=terminal.Progress()):
         self.init_workflow_super_class(args, workflow_name='metagenomics')
 
-        self.target_files = [] # TODO: Once we update all other workflows then this will be initiated in WorkflowSuperClass
         self.samples_information = {}
         self.kraken_annotation_dict = {}
         self.run_krakenuniq = None
         self.run_metaspades = None
         self.use_scaffold_from_metaspades = None
+        self.use_scaffold_from_idba_ud = None
         self.remove_short_reads_based_on_references = None
         self.references_for_removal_txt = None
         self.references_for_removal = {}
@@ -57,10 +58,8 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
 
         self.rules.extend(['iu_gen_configs', 'iu_filter_quality_minoche', 'gen_qc_report', 'gzip_fastqs',\
                      'merge_fastqs_for_co_assembly', 'megahit', 'merge_fastas_for_co_assembly',\
-                     'anvi_gen_contigs_database', 'anvi_export_gene_calls', 'centrifuge',\
-                     'anvi_import_taxonomy', 'anvi_run_hmms', 'anvi_run_ncbi_cogs',\
                      'bowtie_build', 'bowtie', 'samtools_view', 'anvi_init_bam', 'idba_ud',\
-                     'anvi_profile', 'annotate_contigs_database', 'anvi_merge', 'import_percent_of_reads_mapped',\
+                     'anvi_profile', 'anvi_merge', 'import_percent_of_reads_mapped', 'anvi_cluster_contigs',\
                      'krakenuniq', 'krakenuniq_mpa_report', 'import_krakenuniq_taxonomy', 'metaspades',\
                      'remove_short_reads_based_on_references', 'anvi_summarize', 'anvi_split'])
 
@@ -73,6 +72,12 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
         rule_acceptable_params_dict['iu_gen_configs'] = ["--r1-prefix", "--r2-prefix"]
         rule_acceptable_params_dict['iu_filter_quality_minoche'] = ['run', '--visualize-quality-curves', '--ignore-deflines', '--limit-num-pairs', '--print-qual-scores', '--store-read-fate']
         rule_acceptable_params_dict['gzip_fastqs'] = ["run"]
+
+        # add parameters for modifying binning algorithms
+        additional_params_for_anvi_cluster_contigs = [self.get_param_name_for_binning_driver(d) for d in driver_modules['binning'].keys()]
+        rule_acceptable_params_dict['anvi_cluster_contigs'] = ["run", "--collection-name", "--driver", "--just-do-it"]
+        rule_acceptable_params_dict['anvi_cluster_contigs'].extend(additional_params_for_anvi_cluster_contigs)
+
         rule_acceptable_params_dict['anvi_summarize'] = ["additional_params", "run"]
         rule_acceptable_params_dict['anvi_split'] = ["additional_params", "run"]
         rule_acceptable_params_dict['metaspades'] = ["run", "additional_params", "use_scaffolds"]
@@ -89,7 +94,7 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
                                                   "--min_support", "--seed_kmer", "--min_contig",
                                                   "--similar", "--max_mismatch", "--min_pairs",
                                                   "--no_bubble", "--no_local", "--no_coverage",
-                                                  "--no_correct", "--pre_correction"]
+                                                  "--no_correct", "--pre_correction", "use_scaffolds"]
         rule_acceptable_params_dict['bowtie'] = ["additional_params"]
         rule_acceptable_params_dict['samtools_view'] = ["additional_params"]
         rule_acceptable_params_dict['anvi_profile'] = ["--overwrite-output-destinations", "--sample-name", "--report-variability-full",
@@ -98,7 +103,6 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
                                                         "--min-mean-coverage", "--min-coverage-for-variability", "--cluster-contigs",
                                                         "--contigs-of-interest", "--queue-size", "--write-buffer-size", "--max-contig-length",
                                                         "--max-coverage-depth", "--ignore-orphans"]
-        rule_acceptable_params_dict['annotate_contigs_database'] = []
         rule_acceptable_params_dict['merge_fastas_for_co_assembly'] = []
         rule_acceptable_params_dict['merge_fastqs_for_co_assembly'] = []
         rule_acceptable_params_dict['anvi_merge'] = ["--sample-name", "--description", "--skip-hierarchical-clustering",
@@ -140,7 +144,8 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
                                     "anvi_merge": {"--sample-name": "{group}", "--overwrite-output-destinations": True},
                                     "import_percent_of_reads_mapped": {"run": True},
                                     "krakenuniq": {"threads": 3, "--gzip-compressed": True, "additional_params": ""},
-                                    "remove_short_reads_based_on_references": {"delimiter-for-iu-remove-ids-from-fastq": " "}})
+                                    "remove_short_reads_based_on_references": {"delimiter-for-iu-remove-ids-from-fastq": " "},
+                                    "anvi_cluster_contigs": {"--collection-name": "{driver}"}})
 
 
     def init(self):
@@ -164,15 +169,16 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
         self.sample_names = list(self.samples_information['sample'])
         self.run_metaspades = self.get_param_value_from_config(['metaspades', 'run'])
         self.use_scaffold_from_metaspades = self.get_param_value_from_config(['metaspades', 'use_scaffolds'])
+        self.use_scaffold_from_idba_ud = self.get_param_value_from_config(['idba_ud', 'use_scaffolds'])
         self.run_qc = self.get_param_value_from_config(['iu_filter_quality_minoche', 'run']) == True
         self.run_summary = self.get_param_value_from_config(['anvi_summarize', 'run']) == True
         self.run_split = self.get_param_value_from_config(['anvi_split', 'run']) == True
-        self.references_mode = self.get_param_value_from_config('references_mode', repress_default=True)
-        self.fasta_txt_file = self.get_param_value_from_config('fasta_txt', repress_default=True)
+        self.references_mode = self.get_param_value_from_config('references_mode')
+        self.fasta_txt_file = self.get_param_value_from_config('fasta_txt')
+        self.profile_databases = {}
 
         self.references_for_removal_txt = self.get_param_value_from_config(['remove_short_reads_based_on_references',\
-                                                                            'references_for_removal_txt'],\
-                                                                           repress_default=True)
+                                                                            'references_for_removal_txt'])
         if self.references_for_removal_txt:
             self.load_references_for_removal()
 
@@ -187,20 +193,28 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
         self.init_samples_txt()
         self.init_kraken()
         self.init_refereces_txt()
-        self.init_target_files()
+
+        # Set the PROFILE databases paths variable:
+        for group in self.group_names:
+            # we need to use the single profile if the group is of size 1.
+            self.profile_databases[group] = os.path.join(self.dirs_dict["MERGE_DIR"], group, "PROFILE.db") if self.group_sizes[group] > 1 else \
+                                               os.path.join(self.dirs_dict["PROFILE_DIR"],
+                                                            group,
+                                                            self.samples_information.loc[self.samples_information['group']==group,'sample'].values[0],
+                                                            "PROFILE.db")
 
 
-    def init_target_files(self):
+    def get_metagenomics_target_files(self):
+
         target_files = []
-        # We only merge things if there are multiple samples in the same group
-        merged_profiles = [os.path.join(self.dirs_dict["MERGE_DIR"], g, "PROFILE.db") \
-                            for g in self.group_names if self.group_sizes[g] > 1]
-        target_files.extend(merged_profiles)
+
+        target_files.extend(list(self.profile_databases.values()))
 
         # for groups of size 1 we create a message file
         message_file_for_groups_of_size_1 = [os.path.join(self.dirs_dict["MERGE_DIR"], g, "README.txt") \
                             for g in self.group_names if self.group_sizes[g] == 1]
         target_files.extend(message_file_for_groups_of_size_1)
+
 
         contigs_annotated = [os.path.join(self.dirs_dict["CONTIGS_DIR"],\
                              g + "-annotate_contigs_database.done") for g in self.group_names]
@@ -228,7 +242,11 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
                                   for g in self.collections.keys() if not self.collections[g]['default_collection']]
             target_files.extend(split)
 
-        self.target_files.extend(target_files)
+        targets_files_for_binning = self.get_target_files_for_anvi_cluster_contigs()
+        if targets_files_for_binning:
+            target_files.extend(targets_files_for_binning)
+
+        return target_files
 
 
     def get_collection_import_flag(self, group):
@@ -304,7 +322,7 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
                 self.group_names = list(self.sample_names)
                 self.group_sizes = dict.fromkeys(self.group_names,1)
 
-        if self.get_param_value_from_config('all_against_all', repress_default=True):
+        if self.get_param_value_from_config('all_against_all'):
             # in all_against_all, the size of each group is as big as the number
             # of samples.
             self.group_sizes = dict.fromkeys(self.group_names,len(self.sample_names))
@@ -344,9 +362,10 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
         fastq_file_names = list(self.samples_information['r1']) + list(self.samples_information['r2'])
         bad_fastq_names = [s for s in fastq_file_names if (not s.endswith('.fastq') and not s.endswith('.fastq.gz'))]
         if bad_fastq_names:
-            raise ConfigError("We require tha all fastq file names end with either '.fastq' \
-                               or '.fastq.gz'. Some or all of the file names in %s aren't formatted \
-                               accordingly. These are the file names we don't like: %s" % (self.samples_txt_file, ', '.join(bad_fastq_names)))
+            run.warning("We noticed some of your sequence files in '%s' do not end with either '.fastq' \
+                         or '.fastq.gz'. That's okay, but anvi'o decided it should warn you. Here are the first \
+                         5 such files that have unconventional file extensions: %s." \
+                         % (self.samples_txt_file, ', '.join(bad_fastq_names[:5])))
 
 
     def init_kraken(self):
@@ -523,3 +542,87 @@ class MetagenomicsWorkflow(ContigsDBWorkflow, WorkflowSuperClass):
             # by default the input fasta is the assembly output
             contigs = self.dirs_dict["FASTA_DIR"] + "/%s/final.contigs.fa" % wildcards.group
         return contigs
+
+
+    def get_target_files_for_anvi_cluster_contigs(self):
+        import anvio.workflows as w
+        w.D(self.get_param_value_from_config(['anvi_cluster_contigs', 'run']))
+        if self.get_param_value_from_config(['anvi_cluster_contigs', 'run']) is not True:
+            # the user doesn't want to run this
+            return
+        w.D('hi2')
+        requested_drivers = self.get_param_value_from_config(['anvi_cluster_contigs', '--driver'])
+        if not requested_drivers:
+            raise ConfigError('You must specify a driver for anvi_cluster_contigs. \
+                               You specified \'"run": true\' for anvi_cluster_contigs, \
+                               but provided no driver.')
+
+        if type(requested_drivers) != list:
+            requested_drivers = [requested_drivers]
+
+        incompatible_drivers = [d for d in requested_drivers if d not in list(driver_modules['binning'].keys())]
+        if incompatible_drivers:
+            raise ConfigError('The following drivers were listed in the config file for rule anvi_cluster_contigs \
+                               but they are not familiar to anvi\'o: %s' % ', '.join(incompatible_drivers))
+
+        # TODO: we should make sure drivers are installed. Maybe Ozcan or Meren are willing to do this?
+
+        for d in driver_modules['binning'].keys():
+            # let's make sure no parameters were set for a driver that was not listed
+            additional_parameters = self.get_param_value_from_config(['anvi_cluster_contigs', self.get_param_name_for_binning_driver(d)])
+            if additional_parameters:
+                if d not in requested_drivers:
+                    raise ConfigError('You set the following parameters: "%s" for %s, but you did not \
+                                      specify it as one of the drivers that should be used by anvi_cluster_contigs. \
+                                      In order to reduce room for mistakes, we don\'t allow this.' % (additional_parameters, d))
+
+        collection_name = self.get_param_value_from_config(['anvi_cluster_contigs', '--collection-name'])
+        if '{driver}' not in collection_name:
+            if len(requested_drivers) > 1:
+                raise ConfigError('When using multiple binning algorithms, the --collection-name \
+                                   for rule anvi_cluster_contigs must contain \
+                                   the key word "{driver}" (including those curly brackets). \
+                                   It appears you changed the --collection-name, which by \
+                                   default is simply "{driver}" to: "%s". That\'s fine, \
+                                   but only as long as you have "{driver}" appear somewhere in \
+                                   the name, because otherwise the collections made by different \
+                                   binning algorithms would try to override each other, since they \
+                                   would all end up having the same name' % collection_name)
+
+            # if the key word '{driver}' is not in the collection name then it is a static collection name
+            example_collection_name = collection_name
+        else:
+            # if the key word '{driver}' IS in the collection name, then let's take one
+            # driver as example when we check if the collection name is valid.
+            example_collection_name = collection_name.format(driver=requested_drivers[0])
+        try:
+            u.check_collection_name(example_collection_name)
+        except ConfigError as e:
+            raise ConfigError('%s is not an acceptable collection name for anvi_cluster_contigs.\
+                   We tried it for one of the drivers you requested and this is the\
+                   error we got: %s' % (collection_name, e))
+
+        groups_of_size_one = []
+        target_files = []
+        for d in requested_drivers:
+            for g in self.group_names:
+                if self.group_sizes[g] > 1:
+                    # add flag files of binning to the target files
+                    # only if the group is larger than 1 (because otherwise, there is no merged profile)
+                    target_files.append(self.get_flag_file_for_binning_driver(g, d))
+                else:
+                    groups_of_size_one.append(g)
+        if groups_of_size_one:
+            run.warning('You requested to run anvi_cluster_contigs, but it will not run for\
+                         %s, since there is only one sample in this group, and hence there\
+                         will be no merged profile, which is required for anvi-cluster-contigs.' % ', '.join(groups_of_size_one))
+
+        return target_files
+
+
+    def get_flag_file_for_binning_driver(self, group, driver):
+        return os.path.join(self.dirs_dict['MERGE_DIR'], group + '-' + driver + '.done')
+
+
+    def get_param_name_for_binning_driver(self, driver):
+        return '--additional-params' + '-' + driver

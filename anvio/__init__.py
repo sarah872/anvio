@@ -12,11 +12,12 @@ import platform
 # unless you want to explode `bottle`:
 import pkg_resources
 
-anvio_version = '5.5-master'
-anvio_codename = 'margaret'
+anvio_version = '6.1-master'
+anvio_codename = 'esther'
 
 DEBUG = '--debug' in sys.argv
 FORCE = '--force' in sys.argv
+FIX_SAD_TABLES = '--fix-sad-tables' in sys.argv
 
 def P(d, dont_exit=False):
     """Poor man's debug output printer during debugging."""
@@ -46,7 +47,7 @@ def get_args(parser):
        to see can still be sorted out.
     """
 
-    allowed_ad_hoc_flags = ['--version', '--debug', '--force']
+    allowed_ad_hoc_flags = ['--version', '--debug', '--force', '--fix-sad-tables']
 
     args, unknown = parser.parse_known_args()
 
@@ -165,7 +166,7 @@ D = {
             'help': "A two-column TAB-delimited file that lists multiple FASTA files to import\
                      for analysis. If using for `anvi-dereplicate-genomes` or `anvi-compute-distance`,\
                      each FASTA is assumed to be a genome. The first item in the header line\
-                     should read 'name', and the second item should read 'fasta_path'. Each line\
+                     should read 'name', and the second item should read 'path'. Each line\
                      in the field should describe a single entry, where the first column is\
                      the name of the FASTA file or corresponding sequence, and the second column\
                      is the path to the FASTA file itself."}
@@ -278,7 +279,7 @@ D = {
                       'start' (start position, integer), 'stop' (stop position, integer), 'direction' (the direction of the gene open reading\
                       frame; can be 'f' or 'r'), 'partial' (whether it is a complete gene call, or a partial one; must be 1 for partial\
                       calls, and 0 for complete calls), 'source' (the gene caller), and 'version' (the version of the gene caller, i.e.,\
-                      v2.6.7 or v1.0). An example file can be found via the URL https://goo.gl/TqCWT2"}
+                      v2.6.7 or v1.0). An example file can be found via the URL https://bit.ly/2qEEHuQ"}
                 ),
     'external-genomes': (
             ['-e', '--external-genomes'],
@@ -302,7 +303,6 @@ D = {
                       requires an explicit mentioning of which one to use. The default is '%s', but it will not be enough if you\
                       if you were a rebel and have used `--external-gene-callers` or something." % constants.default_gene_caller}
                 ),
-
     'ignore-internal-stop-codons': (
             ['--ignore-internal-stop-codons'],
             {'default': False,
@@ -314,6 +314,15 @@ D = {
                       not judge you. Instead, it will replace every stop codon residue in the amino acid sequence with an 'X' character.\
                       Please let us know if you used this and things failed, so we can tell you that you shouldn't have really used it\
                       if you didn't like failures at the first place (smiley)."}
+                ),
+    'store-partial-amino-acid-sequences': (
+            ['--store-partial-amino-acid-sequences'],
+            {'default': False,
+             'action': 'store_true',
+             'help': "This is only relevant when you have an external gene calls file. If any genes in your external gene calls file\
+                      are partial, by default their sequences will not be translated, and therefore there will be no amino acid\
+                      sequences stored for such genes. Provide this flag to translate them anyways and store their amino acid\
+                      sequences, even though they may be out of frame."}
                 ),
     'get-samples-stats-only': (
             ['--get-samples-stats-only'],
@@ -541,6 +550,15 @@ D = {
                       core gene to estimate the taxonomic composition within a contigs database. If you have a\
                       different preference you can use this parameter to communicate that."}
                 ),
+    'simplify-taxonomy-information': (
+            ['--simplify-taxonomy-information'],
+            {'default': False,
+             'action': 'store_true',
+             'help': "The taxonomy output may include a large number of names that contain clade-specific code for\
+                      not-yet-characterized taxa. With this flag you can simplify taxon names. This will influence\
+                      all output files and displays as the use of this flag will on-the-fly trim taxonomic levels\
+                      with clade-specific code names."}
+                ),
     'compute-scg-coverages': (
             ['--compute-scg-coverages'],
             {'default': False,
@@ -602,6 +620,13 @@ D = {
                       for some reason and if you believe re-downloading files and setting them up could\
                       address the issue, this is the flag that will tell anvi'o to act like a real comptuer\
                       scientist challenged with a computational problem."}
+                ),
+    'redo-databases': (
+            ['--redo-databases'],
+            {'default': False,
+             'action': 'store_true',
+             'help': "Remove existing databases and re-create them. This can be necessary when versions of\
+                      programs change and databases they create and use become incompatible."}
                 ),
     'cog-data-dir': (
             ['--cog-data-dir'],
@@ -889,8 +914,7 @@ D = {
             ['--report-DNA-sequences'],
             {'default': False,
              'action': 'store_true',
-             'help': "By default, this program reports amino acid sequences. You can change that behavior and as for DNA\
-                      sequences instead using this flag."}
+             'help': "By default, this program reports amino acid sequences. Use this flag to report DNA sequences instead."}
                 ),
     'skip-multiple-gene-calls': (
             ['--skip-multiple-gene-calls'],
@@ -1231,7 +1255,8 @@ D = {
             {'metavar': 'VARIABILITY_TABLE',
              'type': str,
              'required': False,
-             'help': "FIXME"}
+             'help': "The output of anvi-gen-variability-profile, or a different variant-calling output that has been converted to the \
+                      anvi'o format."}
                 ),
     'min-coverage-in-each-sample': (
             ['--min-coverage-in-each-sample'],
@@ -1439,6 +1464,13 @@ D = {
              'action': 'store_true',
              'help': "Don't do anything real. Test everything, and stop right before wherever the developer\
                       said 'well, this is enough testing', and decided to print out results."}
+                ),
+    'skip-dry-run': (
+            ['--skip-dry-run'],
+            {'default': False,
+             'action': 'store_true',
+             'help': "Don't do a dry run. Just start the workflow! Useful when your job is so big it takes\
+                      hours to do a dry run."}
                 ),
     'verbose': (
             ['--verbose'],
@@ -1883,6 +1915,17 @@ D = {
                       is because anvi'o computes gene coverages by going back to actual coverage values of each gene to\
                       average them, instead of using contig average coverage values, for extreme accuracy."}
                 ),
+    'reformat-contig-names': (
+            ['--reformat-contig-names'],
+            {'default': False,
+             'action': 'store_true',
+             'help': "Reformat contig names while generating the summary output so they look fancy. With this flag, anvi'o\
+                      will replace the original names of contigs to those that include the bin name as a prefix in resulting\
+                      summary output files per bin. Use this flag carefully as it may influence your downstream analyses due\
+                      to the fact that your original contig names in your input FASTA file for the contigs database will not\
+                      be in the summary output. Although, anvi'o will report a conversion map per bin so you can recover the\
+                      original contig name if you have to."}
+                ),
     'skip-auto-ordering': (
             ['--skip-auto-ordering'],
             {'default': False,
@@ -2041,7 +2084,7 @@ D = {
     'config-file': (
             ['-c', '--config-file'],
             {'required': False,
-             'help': "TBD"}
+             'help': "A JSON-formatted configuration file."}
                 ),
     'additional-params': (
             ['-A', '--additional-params'],

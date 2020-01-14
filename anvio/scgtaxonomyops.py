@@ -198,7 +198,12 @@ class SCGTaxonomyContext(object):
             raise ConfigError("`SetupLocalSCGTaxonomyData` class is upset because it was inherited without\
                                a directory for SCG taxonomy data to be stored :( This variable can't be None.")
 
-        # sanity checks specific to each class
+        # sanity checks specific to classes start below
+        if self.__class__.__name__ in ['SetupLocalSCGTaxonomyData']:
+            if self.reset and self.redo_databases:
+                raise ConfigError("You can't ask anvi'o to both `--reset` and `--redo-databases` at the same time. Well.\
+                                   You can, but then this happens :/")
+
         if self.__class__.__name__ in ['PopulateContigsDatabaseWithSCGTaxonomy', 'SCGTaxonomyEstimator']:
             if not os.path.exists(self.SCGs_taxonomy_data_dir):
                 raise ConfigError("Anvi'o could not find the data directory for the single-copy core genes taxonomy\
@@ -310,6 +315,7 @@ class SCGTaxonomyEstimator(SCGTaxonomyContext):
         self.collection_name = A('collection_name')
         self.bin_id = A('bin_id')
         self.just_do_it = A('just_do_it')
+        self.simplify_taxonomy_information = A('simplify_taxonomy_information')
         self.metagenome_mode = True if A('metagenome_mode') else False
         self.scg_name_for_metagenome_mode = A('scg_name_for_metagenome_mode')
         self.compute_scg_coverages = A('compute_scg_coverages')
@@ -348,11 +354,13 @@ class SCGTaxonomyEstimator(SCGTaxonomyContext):
 
 
     def init_scg_data(self):
+        """Initialize SCG taxonomy for the entire contigs database"""
+
         if not self.contigs_db_path:
             return None
 
         self.progress.new('Initializing')
-        self.progress.update('Working on SCG taxonomy dictionary')
+        self.progress.update('SCG taxonomy dictionary')
 
         for scg_name in self.SCGs:
             self.scg_name_to_gene_caller_id_dict[scg_name] = set([])
@@ -399,17 +407,25 @@ class SCGTaxonomyEstimator(SCGTaxonomyContext):
                 entry_ids_to_remove = [entry for entry in scg_taxonomy_table if scg_taxonomy_table[entry]['gene_callers_id'] not in final_set_of_gene_caller_ids]
                 [scg_taxonomy_table.pop(e) for e in entry_ids_to_remove]
 
+        # NOTE: This will modify the taxonomy strings read from the contigs database. see the
+        # function header for `trim_taxonomy_dict_entry` for more information.
+        if self.simplify_taxonomy_information:
+            self.progress.update('SCG taxonomy dicts ... trimming main')
+            for key in scg_taxonomy_table:
+                scg_taxonomy_table[key] = self.trim_taxonomy_dict_entry(scg_taxonomy_table[key])
+
+        self.progress.update('SCG taxonomy dicts ... building g->tax')
         for entry in scg_taxonomy_table.values():
             gene_callers_id = entry['gene_callers_id']
             self.gene_callers_id_to_scg_taxonomy_dict[gene_callers_id] = entry
 
+        self.progress.update('SCG taxonomy dicts ... building tax->g')
         for entry in self.gene_callers_id_to_scg_taxonomy_dict.values():
             scg_gene_name = entry['gene_name']
             gene_callers_id = entry['gene_callers_id']
-
             self.scg_name_to_gene_caller_id_dict[scg_gene_name].add(gene_callers_id)
 
-        self.progress.update("Finalizing main dictionaries")
+        self.progress.update('SCG taxonomy dicts ... building s->g + g->s')
         for split_name, gene_callers_id in genes_in_splits:
             if gene_callers_id not in self.gene_callers_id_to_scg_taxonomy_dict:
                 continue
@@ -424,10 +440,87 @@ class SCGTaxonomyEstimator(SCGTaxonomyContext):
 
         self.frequency_of_scgs_with_taxonomy = OrderedDict(sorted([(g, len(self.scg_name_to_gene_caller_id_dict[g])) for g in self.scg_name_to_gene_caller_id_dict], key = lambda x: x[1], reverse=True))
 
-        self.run.info_single("A total of %s single-copy core genes with taxonomic affiliations were successfuly initialized\
-                              from the contigs database 🎉 Following shows the frequency of these SCGs: %s." % \
-                                        (pp(len(self.gene_callers_id_to_scg_taxonomy_dict)),
-                                         ', '.join(["%s (%d)" % (g, self.frequency_of_scgs_with_taxonomy[g]) for g in self.frequency_of_scgs_with_taxonomy])), nl_before=1)
+        if self.metagenome_mode or anvio.DEBUG:
+            self.run.info_single("A total of %s single-copy core genes with taxonomic affiliations were successfuly initialized\
+                                  from the contigs database 🎉 Following shows the frequency of these SCGs: %s." % \
+                                            (pp(len(self.gene_callers_id_to_scg_taxonomy_dict)),
+                                             ', '.join(["%s (%d)" % (g, self.frequency_of_scgs_with_taxonomy[g]) \
+                                                                for g in self.frequency_of_scgs_with_taxonomy])), nl_before=1)
+
+
+    def trim_taxonomy_dict_entry(self, taxonomy_dict_entry):
+        """ Remove excess information from taxonomy information.
+
+        The purpose of this is to give an option to the user to simplify GTDB names, that
+        will have a text information for every level of taxonomy depending on what branches
+        genomes fit, but it is not always helpful to the user. Such as this one:
+
+             t_domain Bacteria
+             t_phylum Firmicutes
+             t_class Clostridia
+             t_order Monoglobales
+             t_family UBA1381
+             t_genus CAG-41
+             t_species CAG-41 sp900066215
+
+         in this case the user may want to get this instead:
+
+             t_domain Bacteria
+             t_phylum Firmicutes
+             t_class Clostridia
+             t_order Monoglobales
+             t_family None
+             t_genus None
+             t_species None
+
+         So this function will take a taxonomy dict entry , and will return a simplified
+         version of it if trimming is applicable.
+
+        Paremeters
+        ==========
+        taxonomy_dict_entry: dict
+            a dictionary that contains keys for all taxon names. such as this one:
+                {[...],
+                 't_domain': 'Bacteria',
+                 't_phylum': 'Firmicutes',
+                 't_class': 'Clostridia',
+                 't_order': 'Oscillospirales',
+                 't_family': 'Acutalibacteraceae',
+                 't_genus': 'Ruminococcus',
+                 't_species': 'Ruminococcus sp002491825'
+                }
+         """
+
+        # for optimization, these letters should all have three characters. if that
+        # behavior needs to change, the code down below must be updates. the purpose
+        # of this is not to have a comprehensive list of EVERY single GTDB-specific
+        # clade designations, but to make sure teh vast majority of names are covered.
+        GTDB_specific_clade_prefixes = ['CAG', 'GCA', 'UBA', 'FUL', 'PAL', '2-0', 'Fen']
+
+        taxonomic_levels_to_nullify = []
+
+        for taxonomic_level in self.levels_of_taxonomy[::-1]:
+            if not taxonomy_dict_entry[taxonomic_level]:
+                continue
+
+            if taxonomic_level == 't_species':
+                species_name = taxonomy_dict_entry[taxonomic_level].split(' ')[1]
+                try:
+                    int(species_name[2])
+                    taxonomic_levels_to_nullify.append(taxonomic_level)
+                except:
+                    None
+            else:
+                if taxonomy_dict_entry[taxonomic_level][0:3] in GTDB_specific_clade_prefixes:
+                    taxonomic_levels_to_nullify.append(taxonomic_level)
+
+        # this is the best way to make sure we are not going to nullify order, but leave behind a family name.
+        if taxonomic_levels_to_nullify:
+            level_below_which_to_nullify = min([self.levels_of_taxonomy.index(l) for l in taxonomic_levels_to_nullify])
+            for taxonomic_level in self.levels_of_taxonomy[level_below_which_to_nullify:]:
+                taxonomy_dict_entry[taxonomic_level] = None
+
+        return taxonomy_dict_entry
 
 
     def get_consensus_taxonomy(self, scg_taxonomy_dict):
@@ -982,7 +1075,8 @@ class SetupLocalSCGTaxonomyData(SCGTaxonomyContext):
 
         # user accessible variables
         A = lambda x: args.__dict__[x] if x in args.__dict__ else None
-        self.reset = A("reset")
+        self.reset = A("reset") # complete start-over (downloading everything from GTDB)
+        self.redo_databases = A("redo_databases") # just redo the databaes
         self.num_threads = A('num_threads')
 
         SCGTaxonomyContext.__init__(self, self.args)
@@ -1011,7 +1105,15 @@ class SetupLocalSCGTaxonomyData(SCGTaxonomyContext):
         # databases.
         a_scg_fasta, a_scg_database = list(self.SCGs.values())[0]['fasta'] + '.gz', list(self.SCGs.values())[0]['db']
 
-        if os.path.exists(a_scg_fasta) and os.path.exists(a_scg_database) and not self.reset:
+        if os.path.exists(a_scg_fasta) and os.path.exists(a_scg_database) and self.redo_databases:
+            self.run.warning("Anvi'o is removing all the previous databases so it can regenerate them from their\
+                              ashes.")
+
+            db_paths = [v['db'] for v in self.SCGs.values()]
+            for db_path in db_paths:
+                os.remove(db_path) if os.path.exists(db_path) else None
+
+        elif os.path.exists(a_scg_fasta) and os.path.exists(a_scg_database) and not self.reset:
             raise ConfigError("It seems you have both the FASTA files and the search databases for anvi'o SCG taxonomy\
                                in place. If you want to start from scratch and download everything from GTDB clean, use\
                                the flag `--reset`.")
@@ -1239,6 +1341,7 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
         if not len(hmm_sequences_dict):
             return None
 
+        self.progress.reset()
         self.run.info('Num relevant SCGs in contigs db', '%s' % (pp(len(hmm_sequences_dict))))
 
         scg_sequences_dict = {}
@@ -1278,6 +1381,8 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
             # return empty handed like a goose in the job market in 2020
             return None
 
+        log_file_path = filesnpaths.get_temp_file_path()
+
         self.run.info('Taxonomy', self.accession_to_taxonomy_file_path)
         self.run.info('Database reference', self.search_databases_dir_path)
         self.run.info('Number of SCGs', len(scg_sequences_dict))
@@ -1287,8 +1392,10 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
         self.run.info('Min bit score to report alignments', self.min_pct_id)
         self.run.info('Num aligment tasks running in parallel', self.num_parallel_processes)
         self.run.info('Num CPUs per aligment task', self.num_threads)
+        self.run.info('Log file path', log_file_path)
 
         self.tables_for_taxonomy.delete_contents_of_table(t.scg_taxonomy_table_name)
+        self.tables_for_taxonomy.update_self_value(value=False)
 
         total_num_processes = len(scg_sequences_dict)
 
@@ -1298,6 +1405,7 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
         manager = multiprocessing.Manager()
         input_queue = manager.Queue()
         output_queue = manager.Queue()
+        error_queue = manager.Queue()
 
         blastp_search_output = []
 
@@ -1316,13 +1424,33 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
 
         workers = []
         for i in range(0, int(self.num_parallel_processes)):
-            worker = multiprocessing.Process(target=self.blast_search_scgs_worker, args=(input_queue, output_queue))
+            worker = multiprocessing.Process(target=self.blast_search_scgs_worker, args=(input_queue, output_queue, error_queue, log_file_path))
 
             workers.append(worker)
             worker.start()
 
         num_finished_processes = 0
         while num_finished_processes < total_num_processes:
+            # check error
+            error_text = error_queue.get()
+            if error_text:
+                self.progress.reset()
+
+                for worker in workers:
+                    worker.terminate()
+
+                if 'incompatible' in error_text:
+                    raise ConfigError("Your current databases are incompatible with the diamond version you have on your computer.\
+                                       Please run the command `anvi-setup-scg-databases --redo-databases` and come back.")
+                else:
+                    raise ConfigError("Bad news. The database search operation failed somewhere :( It is very hard for anvi'o\
+                                       to know what happened, but the MOST LIKELY reason is that you have a diamond version\
+                                       installed on your system that is incompatible with anvi'o :/ The best course of action for that\
+                                       is to make sure running `diamond --version` on your terminal returns `0.9.14`. If not,\
+                                       try to upgrade/downgrade your diamond to match this version. If you are in a conda environmnet\
+                                       you can try running `conda install diamond=0.9.14`. Please feel free to contact us if the problem\
+                                       persists. We apologize for the inconvenience.")
+
             try:
                 blastp_search_output += output_queue.get()
 
@@ -1333,7 +1461,7 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
                 num_finished_processes += 1
 
                 self.progress.increment(increment_to=num_finished_processes)
-                self.progress.update("%s of %s SGCs are finished in %s processes with %s threads." \
+                self.progress.update("%s of %s SCGs are finished in %s processes with %s threads." \
                                         % (num_finished_processes, total_num_processes, int(self.num_parallel_processes), self.num_threads))
 
             except KeyboardInterrupt:
@@ -1370,7 +1498,7 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
             self.run.info_single("No hits :/")
 
 
-    def blast_search_scgs_worker(self, input_queue, output_queue):
+    def blast_search_scgs_worker(self, input_queue, output_queue, error_queue, log_file_path):
         """BLAST each SCG identified in the contigs database against the corresopinding
            target local database of GTDB seqeunces
         """
@@ -1384,6 +1512,7 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
             diamond.evalue = self.evalue
             diamond.min_pct_id = self.min_pct_id
             diamond.num_threads = self.num_threads
+            diamond.run.log_file_path = log_file_path
 
             blastp_search_output = diamond.blastp_stdin_multi(fasta_formatted_scg_sequence)
 
@@ -1393,7 +1522,13 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
             for blastp_hit in blastp_search_output.split('\n'):
                 if len(blastp_hit) and not blastp_hit.startswith('Query'):
                     fields = blastp_hit.split('\t')
-                    gene_callers_id = int(fields[0])
+
+                    try:
+                        gene_callers_id = int(fields[0])
+                        error_queue.put(None)
+                    except:
+                        error_queue.put(blastp_search_output)
+
                     hit = dict(zip(['accession', 'percent_identity', 'bitscore'], [fields[1], float(fields[2]), float(fields[11])]))
                     hit = self.update_dict_with_taxonomy(hit)
 
@@ -1404,6 +1539,8 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
                         hits_per_gene[gene_callers_id][scg_name] = []
 
                     hits_per_gene[gene_callers_id][scg_name].append(hit)
+                else:
+                    error_queue.put(None)
 
             for gene_callers_id, scg_raw_hits in hits_per_gene.items():
                 if len(scg_raw_hits.keys()) > 1:
@@ -1431,6 +1568,12 @@ class PopulateContigsDatabaseWithSCGTaxonomy(SCGTaxonomyContext):
         pd.set_option('mode.chained_assignment', None)
 
         df = pd.DataFrame.from_records(scg_raw_hits)
+
+        # remove hits that are null at the phylum level if there are still hits
+        # in the df that are not null:
+        not_null_hits = df[df.t_phylum.notnull()]
+        if len(not_null_hits):
+            df = not_null_hits
 
         # find the max percent identity score in the df
         max_percent_identity = max(df['percent_identity'])

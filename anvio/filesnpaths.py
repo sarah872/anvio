@@ -78,6 +78,8 @@ def is_output_file_writable(file_path, ok_if_exists=True):
                                 a directory :/" % (os.path.abspath(file_path)))
     if not os.access(os.path.dirname(os.path.abspath(file_path)), os.W_OK):
         raise FilesNPathsError("You do not have permission to generate the output file '%s'" % file_path)
+    if os.path.exists(file_path) and not os.access(file_path, os.W_OK):
+        raise FilesNPathsError("You do not have permission to update the contents of the file '%s' :/" % file_path)
     if os.path.exists(file_path) and not ok_if_exists:
         raise FilesNPathsError("The file, '%s', already exists. anvio does not like overwriting stuff." % file_path)
     return True
@@ -208,10 +210,14 @@ def get_temp_directory_path():
     return tempfile.mkdtemp()
 
 
-def get_temp_file_path(prefix=None):
+def get_temp_file_path(prefix=None, just_the_path=True):
     f = tempfile.NamedTemporaryFile(delete=False, prefix=prefix)
     temp_file_name = f.name
     f.close()
+
+    if just_the_path:
+        os.remove(temp_file_name)
+
     return temp_file_name
 
 

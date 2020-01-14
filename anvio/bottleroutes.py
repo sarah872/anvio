@@ -167,12 +167,17 @@ class BottleApplication(Bottle):
         self.route('/data/get_column_info',                    callback=self.get_column_info, method='POST')
         self.route('/data/get_structure/<gene_callers_id:int>',callback=self.get_structure)
         self.route('/data/get_variability',                    callback=self.get_variability, method='POST')
+        self.route('/data/store_variability',                  callback=self.store_variability, method='POST')
+        self.route('/data/store_structure_as_pdb',             callback=self.store_structure_as_pdb, method='POST')
+        self.route('/data/get_gene_function_info/<gene_callers_id:int>',             callback=self.get_gene_function_info)
+        self.route('/data/get_model_info/<gene_callers_id:int>',             callback=self.get_model_info)
         self.route('/data/filter_gene_clusters',               callback=self.filter_gene_clusters, method='POST')
         self.route('/data/reroot_tree',                        callback=self.reroot_tree, method='POST')
         self.route('/data/save_tree',                          callback=self.save_tree, method='POST')
         self.route('/data/check_homogeneity_info',             callback=self.check_homogeneity_info, method='POST')
         self.route('/data/search_items',                       callback=self.search_items_by_name, method='POST')
         self.route('/data/get_taxonomy',                       callback=self.get_taxonomy, method='POST')
+        self.route('/data/get_gene_info/<gene_callers_id>',    callback=self.get_gene_info)
 
 
     def run_application(self, ip, port):
@@ -592,6 +597,44 @@ class BottleApplication(Bottle):
         progress.end()
 
         return json.dumps(data)
+
+
+    def get_gene_info(self, gene_callers_id):
+        # TO DO: there are three functions returns gene info dict for different purposes
+        # this needs to be organized.
+
+        gene_callers_id = int(gene_callers_id)
+        split_name = self.interactive.gene_callers_id_to_split_name_dict[gene_callers_id]
+
+        # we need eentry id
+        entry_id = None
+        for candidate_entry_id in self.interactive.split_name_to_genes_in_splits_entry_ids[split_name]:
+            if int(gene_callers_id) == int(self.interactive.genes_in_splits[candidate_entry_id]['gene_callers_id']):
+                entry_id = candidate_entry_id
+
+
+        if not entry_id:
+            raise ConfigError("Can not find this gene_callers_id in any splits.")
+
+        p =  self.interactive.genes_in_splits[entry_id]
+        # p looks like this at this point:
+        #
+        # {'percentage_in_split': 100,
+        #  'start_in_split'     : 16049,
+        #  'stop_in_split'      : 16633}
+        #  'prot'               : u'prot2_03215',
+        #  'split'              : u'D23-1contig18_split_00036'}
+        #
+        # we will add a bit more attributes:
+        p['source'] =  self.interactive.genes_in_contigs_dict[gene_callers_id]['source']
+        p['direction'] =  self.interactive.genes_in_contigs_dict[gene_callers_id]['direction']
+        p['start_in_contig'] =  self.interactive.genes_in_contigs_dict[gene_callers_id]['start']
+        p['stop_in_contig'] =  self.interactive.genes_in_contigs_dict[gene_callers_id]['stop']
+        p['complete_gene_call'] = 'No' if  self.interactive.genes_in_contigs_dict[gene_callers_id]['partial'] else 'Yes'
+        p['length'] = p['stop_in_contig'] - p['start_in_contig']
+        p['functions'] =  self.interactive.gene_function_calls_dict[gene_callers_id] if gene_callers_id in  self.interactive.gene_function_calls_dict else None
+
+        return json.dumps(p)
 
 
     def search_items_by_name(self):
@@ -1247,6 +1290,24 @@ class BottleApplication(Bottle):
     def get_variability(self):
         options = json.loads(request.forms.get('options'))
         return self.interactive.get_variability(options)
+
+
+    def store_variability(self):
+        options = json.loads(request.forms.get('options'))
+        return self.interactive.store_variability(options)
+
+        
+    def store_structure_as_pdb(self):
+        options = json.loads(request.forms.get('options'))
+        return self.interactive.store_structure_as_pdb(options)
+
+
+    def get_gene_function_info(self, gene_callers_id):
+        return json.dumps(self.interactive.get_gene_function_info(gene_callers_id))
+
+
+    def get_model_info(self, gene_callers_id):
+        return json.dumps(self.interactive.get_model_info(gene_callers_id))
 
 
     def filter_gene_clusters(self):

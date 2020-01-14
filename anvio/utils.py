@@ -10,7 +10,6 @@ import time
 import copy
 import socket
 import shutil
-import psutil
 import smtplib
 import hashlib
 import textwrap
@@ -40,6 +39,13 @@ from anvio.sequence import Composition
 with SuppressAllOutput():
     from ete3 import Tree
 
+# psutil is causing lots of problems for lots of people :/
+with SuppressAllOutput():
+    try:
+        import psutil
+        PSUTIL_OK=True
+    except:
+        PSUTIL_OK=False
 
 __author__ = "Developers of anvi'o (see AUTHORS.txt)"
 __copyright__ = "Copyleft 2015-2018, the Meren Lab (http://merenlab.org/)"
@@ -125,7 +131,7 @@ class Multiprocessing:
                         self.run(processes_to_run.pop())
 
             if not NumRunningProceses() and not processes_to_run:
-                # let the blastn program finish writing all output files.
+                # let the program finish writing all output files.
                 # FIXME: this is ridiculous. find a better solution.
                 time.sleep(1)
                 break
@@ -139,6 +145,9 @@ class Multiprocessing:
 
 
 def get_total_memory_usage():
+    if not PSUTIL_OK:
+        return None
+    
     current_process = psutil.Process(os.getpid())
     mem = current_process.memory_info().rss
     for child in current_process.children(recursive=True):
@@ -179,9 +188,9 @@ def serialize_args(args, single_dash=False, use_underscore=False, skip_keys=None
             if param in skip_keys:
                 continue
 
-        if param in translate:
+        if translate and param in translate:
             param = translate[param]
-        
+
         dash = '-' if single_dash else '--'
 
         if not use_underscore:
@@ -326,7 +335,7 @@ def is_program_exists(program, dont_raise=False):
 def format_cmdline(cmdline):
     """Takes a cmdline for `run_command` or `run_command_STDIN`, and makes it beautiful."""
     if not cmdline or (not isinstance(cmdline, str) and not isinstance(cmdline, list)):
-        raise ConfigError("You made ultis::format_cmdline upset. The parameter you sent to run kinda sucks. It should be string\
+        raise ConfigError("You made utils::format_cmdline upset. The parameter you sent to run kinda sucks. It should be string\
                             or list type. Note that the parameter `shell` for subprocess.call in this `run_command` function\
                             is always False, therefore if you send a string type, it will be split into a list prior to being\
                             sent to subprocess.")
@@ -377,9 +386,47 @@ def gzip_decompress_file(input_file_path, output_file_path=None, keep_original=T
     return output_file_path
 
 
+class RunInDirectory(object):
+    """ Run any block of code in a specified directory. Return to original directory
+
+    Parameters
+    ==========
+    run_dir : str or Path-like
+        The directory the block of code should be run in
+    """
+
+    def __init__(self, run_dir):
+        self.run_dir = run_dir
+        self.cur_dir = os.getcwd()
+        if not os.path.isdir(self.run_dir):
+            raise ConfigError("RunInDirectory :: %s is not a directory." % str(self.run_dir))
+
+
+    def __enter__(self):
+        os.chdir(self.run_dir)
+
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        os.chdir(self.cur_dir)
+
+
 def run_command(cmdline, log_file_path, first_line_of_log_is_cmdline=True, remove_log_file_if_exists=True):
-    """Uses subprocess.call to run your `cmdline`"""
+    """ Uses subprocess.call to run your `cmdline`
+
+    Parameters
+    ==========
+    cmdline : str or list
+        The command to be run, e.g. "echo hello" or ["echo", "hello"]
+    log_file_path : str or Path-like
+        All stdout from the command is sent to this filepath
+    """
     cmdline = format_cmdline(cmdline)
+
+    if anvio.DEBUG:
+        Progress().reset()
+        Run().info("[DEBUG] `run_command` is running", \
+                   ' '.join(['%s' % (('"%s"' % str(x)) if ' ' in str(x) else ('%s' % str(x))) for x in cmdline]), \
+                   nl_before=1, nl_after=1, mc='red', lc='yellow')
 
     filesnpaths.is_output_file_writable(log_file_path)
 
@@ -395,7 +442,7 @@ def run_command(cmdline, log_file_path, first_line_of_log_is_cmdline=True, remov
         log_file.close()
 
         if ret_val < 0:
-            raise ConfigError("command was terminated")
+            raise ConfigError("Command failed to run. What command, you say? This: '%s'" % ' '.join(cmdline))
         else:
             return ret_val
     except OSError as e:
@@ -461,11 +508,10 @@ def store_array_as_TAB_delimited_file(a, output_path, header, exclude_columns=[]
 
 
 def store_dataframe_as_TAB_delimited_file(d, output_path, columns=None, include_index=False, index_label="index", naughty_characters=[-np.inf, np.inf], rep_str=""):
-    """
-    Stores a pandas DataFrame as a tab-delimited file.
+    """ Stores a pandas DataFrame as a tab-delimited file.
 
-    PARAMS
-    ======
+    Parameters
+    ==========
     d: pandas DataFrame
         DataFrame you want to save.
     output_path: string
@@ -482,7 +528,7 @@ def store_dataframe_as_TAB_delimited_file(d, output_path, columns=None, include_
     rep_str: String (default = "")
         The string that elements belonging to naughty_characters are replaced by.
 
-    RETURNS
+    Returns
     =======
     output_path
     """
@@ -603,7 +649,7 @@ def split_fasta(input_file_path, parts=1, prefix=None):
 
     source = u.ReadFasta(input_file_path, quiet=True)
     length = len(source.ids)
-    
+
     if length < parts:
         parts = length
 
@@ -613,7 +659,7 @@ def split_fasta(input_file_path, parts=1, prefix=None):
 
     for part_no in range(parts):
         output_file = prefix + '.' + str(part_no)
-        
+
         output_fasta = u.FastaOutput(output_file)
 
         chunk_start = chunk_size * part_no
@@ -1014,7 +1060,15 @@ def get_synonymous_and_non_synonymous_potential(list_of_codons_in_gene, just_do_
                            want to continue anyways, use the just_do_it flag")
 
     synonymous_potential = 0
+    num_ambiguous_codons = 0 # these are codons with Ns or other characters than ATCG
+
     for codon in list_of_codons_in_gene:
+        # first test if it is proper codon
+        if not codon:
+            num_ambiguous_codons += 1
+            continue
+
+        # if we are here, this is a proper codon
         for i, nt in enumerate(codon):
             for mutant_nt in [m for m in 'ACGT' if m != nt]:
 
@@ -1025,8 +1079,9 @@ def get_synonymous_and_non_synonymous_potential(list_of_codons_in_gene, just_do_
                 if constants.codon_to_AA[mutant_codon] == constants.codon_to_AA[codon]:
                     synonymous_potential += 1/3
 
-    non_synonymous_potential = 3 * len(list_of_codons_in_gene) - synonymous_potential
-    return synonymous_potential, non_synonymous_potential
+    non_synonymous_potential = 3 * (len(list_of_codons_in_gene) - num_ambiguous_codons) - synonymous_potential
+
+    return synonymous_potential, non_synonymous_potential, num_ambiguous_codons
 
 
 def get_N50(contig_lengths):
@@ -1378,6 +1433,77 @@ def get_DNA_sequence_translated(sequence, gene_callers_id, return_with_stops=Fal
     return translated_sequence
 
 
+def is_gene_sequence_clean(seq, amino_acid=False, can_end_with_stop=False):
+    """ Returns True if gene sequence is clean (amino acid or nucleotide), otherwise raises ConfigError
+
+    Parameters
+    ==========
+    seq : str
+        A string of amino acid or nucleotide sequence
+    amino_acid : bool, False
+        If True, the sequence is assumed to be an amino acid sequence
+    can_end_with_stop : bool, False
+        If True, the sequence can, but does not have to, end with * if amino_acid=True, or one of
+        <TAG, TGA, TAA> if amino_acid=False.
+
+    Returns
+    =======
+    value : bool
+
+    Notes
+    =====
+    - A 'clean gene' depends on `amino_acid`. If amino_acid=True, must contain only the 20 1-letter
+      codes (case insensitive) and start with M. If amino_acid=False, must contain only A,C,T,G
+      (case insenstive), start with ATG, and have length divisible by 3. If can_end_with_stop=True,
+      `seq` can end with a stop. If any intermediate  and in-frame stop codons are found, the gene
+      is not clean
+    """
+    error_msg_template = "The gene sequence is not clean. Reason: %s"
+    seq = seq.upper()
+
+    start_char = 'M' if amino_acid else 'ATG'
+    end_chars = ['*'] if amino_acid else ['TAG', 'TGA', 'TAA']
+
+    permissible_chars = (set(constants.AA_to_single_letter_code.values())
+                         if amino_acid
+                         else set(constants.codons)) - set(end_chars)
+
+    if not amino_acid:
+        if len(seq) % 3:
+            raise ConfigError(error_msg_template % "The number of nucleotides is not divisible by 3")
+
+        new_seq = [] # list of length-3 strings
+        for i in range(0, len(seq), 3):
+            new_seq.append(seq[i:i+3])
+
+        seq = new_seq
+
+    if not seq[0] == start_char:
+        raise ConfigError(error_msg_template % "Should start with methionine but instead starts with %s" % seq[0])
+
+    for i, element in enumerate(seq[:-1]):
+        if element in end_chars:
+            l, r = min([i, 3]), min([len(seq[:-1])-i, 3])
+            raise ConfigError(error_msg_template % "Premature stop codon at %dth codon \
+                              position (counting from 0). Here is the position in the \
+                              context of the sequence: ...%s[%s]%s..." % \
+                              (i, ''.join(seq[:-1][i-l:i]), element, ''.join(seq[:-1][i+1:i+r+1])))
+        if element not in permissible_chars:
+            l, r = min([i, 3]), min([len(seq[:-1])-i, 3])
+            raise ConfigError(error_msg_template % "%s at %dth codon position (counting from zero) \
+                              isn't a valid sequence element. Here is the position in the \
+                              context of the sequence: ...%s[%s]%s..." % \
+                              (element, i, ''.join(seq[:-1][i-l:i]), element, ''.join(seq[:-1][i+1:i+r+1])))
+
+    if seq[-1] in end_chars:
+        if not can_end_with_stop:
+            raise ConfigError(error_msg_template % "Sequence should not contain an explicit stop codon")
+    elif seq[-1] not in permissible_chars:
+        raise ConfigError(error_msg_template % "Last codon is not a valid character: %s" % seq[-1])
+
+    return True
+
+
 def get_list_of_AAs_for_gene_call(gene_call, contig_sequences_dict):
 
     list_of_codons = get_list_of_codons_for_gene_call(gene_call, contig_sequences_dict)
@@ -1414,9 +1540,17 @@ def get_list_of_codons_for_gene_call(gene_call, contig_sequences_dict):
     list_of_codons = []
     for codon_order in codon_order_to_nt_positions:
         nt_positions = codon_order_to_nt_positions[codon_order]
+
+        # here we cut it from the contig sequence
         reference_codon_sequence = contig_sequence[nt_positions[0]:nt_positions[2] + 1]
 
-        list_of_codons.append(constants.codon_to_codon_RC[reference_codon_sequence] if gene_call['direction'] == 'r' else reference_codon_sequence)
+        # NOTE: here we make sure the codon sequence is composed of unambiguous nucleotides.
+        # and we will not inlcude those that contain anything other than proper
+        # nucleotides in the resulting list of codons.
+        if set(reference_codon_sequence).issubset(constants.unambiguous_nucleotides):
+            list_of_codons.append(constants.codon_to_codon_RC[reference_codon_sequence] if gene_call['direction'] == 'r' else reference_codon_sequence)
+        else:
+            list_of_codons.append(None)
 
     return list_of_codons
 
@@ -1532,6 +1666,7 @@ def create_fasta_dir_from_sequence_sources(genome_desc, fasta_txt=None):
 
     temp_dir = filesnpaths.get_temp_directory_path()
     hash_to_name = {}
+    name_to_path = {}
     genome_names = set([])
     file_paths = set([])
     if genome_desc is not None:
@@ -1543,6 +1678,8 @@ def create_fasta_dir_from_sequence_sources(genome_desc, fasta_txt=None):
 
             path = os.path.join(temp_dir, hash_for_output_file + '.fa')
             file_paths.add(path)
+
+            name_to_path[genome_name] = path
 
             if 'bin_id' in genome_desc.genomes[genome_name]:
                 # Internal genome
@@ -1580,13 +1717,13 @@ def create_fasta_dir_from_sequence_sources(genome_desc, fasta_txt=None):
             path = os.path.join(temp_dir, hash_for_output_file + '.fa')
             file_paths.add(path)
 
+            name_to_path[name] = path
+
             with open(path, 'w') as dest:
                 with open(source, 'r') as src:
                     dest.write(src.read())
 
-    path_dict = dict(zip(genome_names, file_paths))
-
-    return temp_dir, hash_to_name, genome_names, path_dict
+    return temp_dir, hash_to_name, genome_names, name_to_path
 
 
 def get_FASTA_file_as_dictionary(file_path):

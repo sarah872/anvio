@@ -35,7 +35,7 @@ pp = terminal.pretty_print
 
 
 class TablesForHMMHits(Table):
-    def __init__(self, db_path, num_threads_to_use=1, run=run, progress=progress):
+    def __init__(self, db_path, num_threads_to_use=1, run=run, progress=progress, initializing_for_deletion=False):
         self.num_threads_to_use = num_threads_to_use
         self.db_path = db_path
 
@@ -62,8 +62,9 @@ class TablesForHMMHits(Table):
                                   sources only operate on DNA sequences, and at this point it doesn't know which HMMs you wish to run.\
                                   If the lack of genes causes a problem, you will get another error message later probably :/")
 
-        self.set_next_available_id(t.hmm_hits_table_name)
-        self.set_next_available_id(t.hmm_hits_splits_table_name)
+        if not initializing_for_deletion:
+            self.set_next_available_id(t.hmm_hits_table_name)
+            self.set_next_available_id(t.hmm_hits_splits_table_name)
 
 
     def populate_search_tables(self, sources={}):
@@ -149,9 +150,9 @@ class TablesForHMMHits(Table):
 
             if context == 'CONTIG':
                 # we are in trouble here. because our search results dictionary contains no gene calls, but contig
-                # names that contain our hits. on the other hand, the rest of the code outside of this if statement
-                # expects a `search_results_dict` with gene callers id in it. so there are two things we need to do
-                # to do. one is to come up with some new gene calls and add them to the contigs database. so things
+                # names contain our hits. on the other hand, the rest of the code outside of this if statement
+                # expects a `search_results_dict` with gene caller ids in it. so there are two things we need to do.
+                # one is to come up with some new gene calls and add them to the contigs database. so things
                 # will go smoothly downstream. two, we will need to update our `search_results_dict` so it looks
                 # like a a dictionary the rest of the code expects with `gene_callers_id` fields. both of these
                 # steps are going to be taken care of in the following function. magic.

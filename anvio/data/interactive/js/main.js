@@ -1434,6 +1434,7 @@ function serializeSettings(use_layer_names) {
     state['max-font-size'] = $('#max_font_size').val();
     state['optimize-speed'] = $('#optimize_speed').is(':checked');
     state['show-bin-labels'] = $('#show_bin_labels').is(':checked');
+    state['begins-from-branch'] = $('#begins_from_branch').is(':checked');
     state['bin-labels-font-size'] = $('#bin_labels_font_size').val();
     state['autorotate-bin-labels'] = $('#autorotate_bin_labels').is(':checked');
     state['estimate-taxonomy'] = $('#estimate_taxonomy').is(':checked');
@@ -1696,8 +1697,9 @@ function showCompleteness(bin_id, updateOnly) {
                   '<th>&nbsp;</th>' + 
                   '<th data-sortcolumn="1" data-sortkey="1-0">Domain</th>' + 
                   '<th data-sortcolumn="2" data-sortkey="2-0">Domain Confidence</th>' + 
-                  '<th data-sortcolumn="3" data-sortkey="3-0">Completion</th>' + 
-                  '<th data-sortcolumn="4" data-sortkey="4-0">Redundancy</th>' + 
+                  '<th data-sortcolumn="3" data-sortkey="3-0">HMM Source</th>' + 
+                  '<th data-sortcolumn="4" data-sortkey="4-0">Completion</th>' + 
+                  '<th data-sortcolumn="5" data-sortkey="5-0">Redundancy</th>' + 
               '</tr></thead><tbody>';
 
     for (let source in stats){
@@ -1716,7 +1718,9 @@ function showCompleteness(bin_id, updateOnly) {
         } else {
             msg += "<td data-value='N/A'>N/A</td>";
         }
-        
+
+        msg += "<td data-value='" + stats[source]['source'] + "'>" + stats[source]['source'] + "</td>";
+
         msg += "<td data-value='" + stats[source]['percent_completion'] + "'>" + stats[source]['percent_completion'].toFixed(2) + "%</td>" +
                "<td data-value='" + stats[source]['percent_redundancy'] + "'>" + stats[source]['percent_redundancy'].toFixed(2) + "%</td>";
 
@@ -1733,7 +1737,7 @@ function showCompleteness(bin_id, updateOnly) {
 function showRedundants(bin_id, updateOnly) {
     if (typeof updateOnly === 'undefined')
         updateOnly = false;
-    
+
     if (!bins.cache['completeness'].hasOwnProperty(bin_id))
         return;
 
@@ -1841,7 +1845,9 @@ function exportSvg(dontDownload) {
     var settings = {};
     settings = last_settings; 
     drawLayerLegend(settings['layers'], settings['views'][current_view], settings['layer-order'], top, left);
-    var detached_clones = $('#samples_tree path.clone').detach();
+    
+    var detached = $('#tree path.clone').detach();
+    var detachedSamples = $('#samples_tree path.clone').detach();
     drawTitle(last_settings);
     drawLegend();
 
@@ -1856,7 +1862,8 @@ function exportSvg(dontDownload) {
     svgCrowbar();
 
     svg.removeAttribute('viewBox');
-    $('#samples_tree').prepend(detached_clones);
+    $('#tree').prepend(detached);
+    $('#samples_tree').prepend(detachedSamples);
     $('#bin_legend').remove();
     $('#layer_legend').remove();
     $('#title_group').remove();
@@ -2414,6 +2421,9 @@ function processState(state_name, state) {
     if (state.hasOwnProperty('draw-guide-lines')) {
         $('#draw_guide_lines').val(state['draw-guide-lines'])
     }
+    if (state.hasOwnProperty('begins-from-branch')) {
+        $('#begins_from_branch').val(state['begins-from-branch'])
+    }
 
     // reload layers
     var current_view = $('#views_container').val();
@@ -2597,7 +2607,7 @@ function showTaxonomy()
 
                         scg_table_content += `<tr>
                             <td>${ scg['gene_name'] }</a></td>
-                            <td class="text-center">${ scg['gene_callers_id'] }</a></td>
+                            <td class="text-center"><a href="#" onclick="showGenePopup(this, '${ scg['gene_callers_id'] }');">${ scg['gene_callers_id'] }</a></td>
                             <td class="text-center">${ scg['percent_identity'] }</a></td>
                             <td>${ scg['supporting_consensus'] }</td>`;
 
@@ -2642,6 +2652,53 @@ function showTaxonomy()
     });
 }
 
+function showGenePopup(element, gene_callers_id) {
+
+    $('[data-toggle="popover"]').popover({"html": true, "trigger": "click", "container": "body", "viewport": "body", "placement": "top"});
+
+    // workaround for known popover bug
+    // source: https://stackoverflow.com/questions/32581987/need-click-twice-after-hide-a-shown-bootstrap-popover
+    $('body').on('hidden.bs.popover', function (e) {
+      $(e.target).data("bs.popover").inState.click = false;
+    });
+
+    $('[data-toggle="popover"]').on('shown.bs.popover', function (e) {
+      var popover = $(e.target).data("bs.popover").$tip;
+      
+      if ($(popover).css('top').charAt(0) === '-') {
+        $(popover).css('top', '0px');
+      }
+
+      if ($(popover).css('left').charAt(0) === '-') {
+        $(popover).css('left', '0px');
+      }
+
+      $(popover).draggable();
+    });
+
+    $.ajax({
+            type: 'GET',
+            cache: false,
+            url: '/data/get_gene_info/' + gene_callers_id,
+            data: {'gene_callers_id': gene_callers_id},
+            success: function(gene_data) {
+                $(element).attr('data-content', );
+                $(element).attr('data-toggle', 'popover');
+                var popOverSettings = {
+                    placement: 'bottom',
+                    container: 'body',
+                    html: true,
+                    selector: '[rel="popover"]', // Specify the selector here
+                    content: function () {
+                        return get_gene_functions_table_html(gene_data);
+                    }
+                }
+
+                $(element).popover(popOverSettings);
+                $(element).popover('show');
+            }
+    });
+}
 
 function toggleTaxonomyEstimation() {
     let is_checked = $('#estimate_taxonomy').is(':checked');
@@ -2656,5 +2713,12 @@ function toggleTaxonomyEstimation() {
         });
     }
 
-    bins.UpdateBinsWindow();
+    /*
+        loadState/processState triggers onchange event of inputs
+        which causes problem when state is loaded before bins initialized
+        so we make sure here.
+    */
+    if (bins) {
+        bins.UpdateBinsWindow();
+    }
 }

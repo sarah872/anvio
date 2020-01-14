@@ -1403,7 +1403,7 @@ class Interactive(ProfileSuperclass, PanSuperclass, ContigsSuperclass):
         pass
 
 
-class StructureInteractive(VariabilitySuper):
+class StructureInteractive(VariabilitySuper, ContigsSuperclass):
     def __init__(self, args, run=run, progress=progress):
         self.run = run
         self.progress = progress
@@ -1432,7 +1432,6 @@ class StructureInteractive(VariabilitySuper):
         self.saavs_only = A('SAAVs_only', bool)
         self.scvs_only = A('SCVs_only', bool)
         self.variability_table_path = A('variability_profile', null)
-        self.no_variability = A('no_variability', bool)
         self.min_departure_from_consensus = A('min_departure_from_consensus', float) or 0
 
         # states
@@ -1440,13 +1439,14 @@ class StructureInteractive(VariabilitySuper):
 
         # For now, only true if self.variability_table_path. Otherwise variability is computed on the fly
         self.store_full_variability_in_memory = True if self.variability_table_path else False
-        self.sample_groups_provided = True if self.profile_db_path else False
         self.full_variability = None
         self.variability_storage = {}
 
         self.num_reported_frequencies = 5
 
         self.sanity_check()
+
+        ContigsSuperclass.__init__(self, self.args, r=terminal.Run(verbose=False), p=terminal.Progress(verbose=False))
 
         if self.store_full_variability_in_memory:
             self.profile_full_variability_data()
@@ -1457,6 +1457,8 @@ class StructureInteractive(VariabilitySuper):
         # can save significant memory if available genes is a fraction of genes in full variability
         if self.full_variability:
             self.filter_full_variability()
+            self.available_genes = self.get_available_genes() # genes can be lost during self.filter_full_variability()
+                                                              # so we re-calculate available genes :\
             self.process_full_variability()
 
         # default gene is the first gene of interest
@@ -1464,6 +1466,63 @@ class StructureInteractive(VariabilitySuper):
 
         self.available_samples = self.get_available_samples()
         self.sample_groups = self.create_sample_groups_dict()
+
+
+    def get_gene_function_info(self, gene_callers_id):
+        """Returns gene function info from the gene_function_calls_dict of ContigsSuperclass
+
+        If gene functions have not been initialized, ContigsSuperclass.init_functions is called
+
+        Notes
+        =====
+        - This initializes genes for the entire contigs database. When this becomes intolerably
+          inefficient, ContigsSuperclass.init_functions should be modified to take a genes of
+          interest flag
+        """
+
+        if not self.gene_function_calls_initiated:
+            self.init_functions()
+
+        return {'functions': self.gene_function_calls_dict.get(gene_callers_id)}
+
+
+    def get_model_info(self, gene_callers_id):
+        """Returns information about the protein model, e.g. template IDs, DOPE_score, etc"""
+
+        structure_db = structureops.StructureDatabase(self.structure_db_path, 'none', ignore_hash=True)
+
+        models = structure_db.db.get_table_as_dataframe(
+            'models',
+            columns_of_interest=['GA341_score', 'DOPE_score', 'molpdf', 'picked_as_best'],
+            where_clause='corresponding_gene_call = %d' % gene_callers_id,
+        ).rename(columns={
+            'DOPE_score': 'DOPE',
+            'GA341_score': 'GA341',
+        })
+        models['Models tried'] = models.shape[0]
+        models = models.loc[models['picked_as_best'] == 1, ['DOPE', 'GA341', 'molpdf', 'Models tried']].reset_index(drop=True)
+
+        templates = structure_db.db.get_table_as_dataframe(
+            'templates',
+            columns_of_interest=['pdb_id', 'chain_id', 'ppi'],
+            where_clause='corresponding_gene_call = %d' % gene_callers_id,
+        ).rename(columns={
+            'pdb_id': 'PDB',
+            'chain_id': 'Chain',
+            'ppi': '%Identity',
+        })[['PDB', 'Chain', '%Identity']]
+
+        structure_db.disconnect()
+
+        return {
+            'models': models.to_json(orient='index'),
+            'templates': templates.to_json(orient='index'),
+        }
+
+
+    def get_search_results_for_gene_functions(self, search_terms):
+        """FIXME Currently unused"""
+        items, full_report = ContigsSuperclass.search_for_gene_functions(self, search_terms, verbose=True)
 
 
     def filter_full_variability(self):
@@ -1558,14 +1617,15 @@ class StructureInteractive(VariabilitySuper):
         if var.data.empty:
             return []
 
-        FIND_MIN = lambda c: var.data[c].min() if c in var.data.columns else 0
-        FIND_MAX = lambda c: var.data[c].max() if c in var.data.columns else 1
+        FIND_MIN = lambda c, buff=0.01: var.data[c].min() - buff if c in var.data.columns else 0
+        FIND_MAX = lambda c, buff=0.01: var.data[c].max() + buff if c in var.data.columns else 1
+
 
         info = [
             {
                 'name': 'departure_from_consensus',
                 'title': 'Departure from consensus',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 0.01,
@@ -1575,7 +1635,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'departure_from_reference',
                 'title': 'Departure from reference',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 0.01,
@@ -1585,7 +1645,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'n2n1ratio',
                 'title': 'Ratio of 2nd to 1st',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 0.01,
@@ -1595,7 +1655,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'prevalence',
                 'title': 'Prevalence',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': False,
                 'merged_only': True,
                 'data_type': 'float',
@@ -1605,21 +1665,21 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'occurrence',
                 'title': 'occurrence',
-                'as_perspective': False,
+                'as_view': False,
                 'as_filter': False,
                 'merged_only': True,
                 'data_type': 'integer',
             },
             {
                 'name': 'contact_numbers',
-                'as_perspective': False,
+                'as_view': False,
                 'as_filter': False,
                 'data_type': 'text',
             },
             {
                 'name': 'mean_normalized_coverage',
                 'title': 'Site coverage normalized by gene average',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 0.01,
@@ -1629,17 +1689,17 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'coverage',
                 'title': 'Site coverage',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 1,
-                'min': int(FIND_MIN('coverage')),
-                'max': int(FIND_MAX('coverage'))
+                'min': int(FIND_MIN('coverage', buff=1)),
+                'max': int(FIND_MAX('coverage', buff=1))
             },
             {
                 'name': 'synonymity',
                 'title': 'Synonymity',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 0.01,
@@ -1649,7 +1709,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'entropy',
                 'title': 'Entropy',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 0.01,
@@ -1659,7 +1719,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'rel_solvent_acc',
                 'title': 'Relative solvent accessibility',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 0.01,
@@ -1669,7 +1729,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'sec_struct',
                 'title': 'Secondary structure',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'checkbox',
                 'data_type': 'text',
                 'choices': ['C', 'S', 'G', 'H', 'T', 'I', 'E', 'B']
@@ -1677,7 +1737,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'phi',
                 'title': 'Phi',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 1,
@@ -1687,7 +1747,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'psi',
                 'title': 'Psi',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'float',
                 'step': 1,
@@ -1697,7 +1757,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'BLOSUM62',
                 'title': 'BLOSUM62',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'integer',
                 'step': 1,
@@ -1707,7 +1767,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'BLOSUM90',
                 'title': 'BLOSUM90',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'integer',
                 'step': 1,
@@ -1717,7 +1777,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'codon_order_in_gene',
                 'title': 'Codon index',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'integer',
                 'step': 1,
@@ -1727,7 +1787,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'codon_number',
                 'title': 'Codon number',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'slider',
                 'data_type': 'integer',
                 'step': 1,
@@ -1737,7 +1797,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': var.competing_items,
                 'title': 'Competing Amino Acids' if engine == "AA" else 'Competing Codons',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'checkbox',
                 'data_type': 'text',
                 'choices': list(var.data[var.competing_items].value_counts().sort_values(ascending=False).index)
@@ -1745,7 +1805,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'reference',
                 'title': 'Reference',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'checkbox',
                 'data_type': 'text',
                 'choices': list(var.data['reference'].value_counts().sort_values(ascending=False).index)
@@ -1753,7 +1813,7 @@ class StructureInteractive(VariabilitySuper):
             {
                 'name': 'consensus',
                 'title': 'Consensus',
-                'as_perspective': True,
+                'as_view': True,
                 'as_filter': 'checkbox',
                 'data_type': 'text',
                 'choices': list(var.data['consensus'].value_counts().sort_values(ascending=False).index)
@@ -1765,7 +1825,7 @@ class StructureInteractive(VariabilitySuper):
             info.append(
                 {
                     'name': item,
-                    'as_perspective': False,
+                    'as_view': False,
                     'as_filter': False,
                     'data_type': 'integer',
                 },
@@ -1776,21 +1836,21 @@ class StructureInteractive(VariabilitySuper):
             info.extend([
                 {
                     'name': str(x) + '_item',
-                    'as_perspective': False,
+                    'as_view': False,
                     'as_filter': False,
                     'data_type': 'text',
                     'merged_only': True,
                 },
                 {
                     'name': str(x) + '_item_AA',
-                    'as_perspective': False,
+                    'as_view': False,
                     'as_filter': False,
                     'data_type': 'text',
                     'merged_only': True,
                 },
                 {
                     'name': str(x) + '_freq',
-                    'as_perspective': False,
+                    'as_view': False,
                     'as_filter': False,
                     'data_type': 'float',
                     'merged_only': True,
@@ -1947,13 +2007,13 @@ class StructureInteractive(VariabilitySuper):
             raise ConfigError("Must provide a structure database.")
         utils.is_structure_db(self.structure_db_path)
 
-        if self.no_variability:
-            run.warning("Wow. Seriously? --no-variability? This is why freedom of speech needs to be\
-                         abolished.")
+        if not self.contigs_db_path:
+            raise ConfigError("Must provide a contigs database.")
+        utils.is_contigs_db(self.contigs_db_path)
 
-        elif not self.profile_db_path and not self.variability_table_path:
+        if not self.profile_db_path and not self.variability_table_path:
             raise ConfigError("You have to provide either a variability table generated from\
-                               anvi-gen-variability-profile, or a profile and contigs database from\
+                               anvi-gen-variability-profile, or a profile database from\
                                which sequence variability will be computed.")
 
         if self.variability_table_path:
@@ -1972,10 +2032,6 @@ class StructureInteractive(VariabilitySuper):
                              you can read about how to create them here:\
                              http://merenlab.org/2017/12/11/additional-data-tables/#layers-additional-data-table.")
 
-        elif self.profile_db_path and not self.contigs_db_path:
-            raise ConfigError("A contigs database must accompany your profile database. Provide one\
-                               with the flag `-c`.")
-
         if self.saavs_only and self.scvs_only:
             raise ConfigError("--SAAVs-only and --SCVs-only are not compatible with one another. Pick one.")
 
@@ -1984,9 +2040,11 @@ class StructureInteractive(VariabilitySuper):
         """Creates self.full_variability, which houses the full variability... well, the full
            variability of all genes with structures in the structure database
         """
+        verbose, stealth = (True, False) if anvio.DEBUG else (False, True)
+
         self.progress.new("Loading full variability table"); self.progress.update("...")
-        self.full_variability = variabilityops.VariabilityData(self.args, p=terminal.Progress(verbose=False), r=terminal.Run(verbose=False))
-        self.full_variability.stealth_filtering = True
+        self.full_variability = variabilityops.VariabilityData(self.args, p=terminal.Progress(verbose=verbose), r=terminal.Run(verbose=verbose))
+        self.full_variability.stealth_filtering = stealth
         self.progress.end()
 
 
@@ -1995,6 +2053,11 @@ class StructureInteractive(VariabilitySuper):
            If the variability table is provided, the full table is stored in memory and a gene
            subset is created.
         """
+        if anvio.DEBUG:
+            verbose, stealth = True, False
+        else:
+            verbose, stealth = False, True
+
         if gene_callers_id in self.variability_storage:
             # already profiled.
             return
@@ -2014,8 +2077,8 @@ class StructureInteractive(VariabilitySuper):
                 self.args.engine = engine
                 self.args.genes_of_interest_set = set([gene_callers_id])
                 self.args.compute_gene_coverage_stats = True
-                var = variability_engines[engine](self.args, p=terminal.Progress(verbose=False), r=terminal.Run(verbose=False))
-                var.stealth_filtering = True
+                var = variability_engines[engine](self.args, p=terminal.Progress(verbose=verbose), r=terminal.Run(verbose=verbose))
+                var.stealth_filtering = stealth
 
                 # we convert counts to frequencies so high-covered samples do not skew averaging
                 # across samples
@@ -2075,16 +2138,7 @@ class StructureInteractive(VariabilitySuper):
             self.compute_merged_variability(var, column_info, samples_in_group)
             self.wrangle_merged_variability(var)
 
-            # now set all filter parameters
-            for filter_criterion, param_values in options["filter_params"].items():
-                for param_name, param_value in param_values.items():
-                    setattr(var, param_name, param_value)
-                list_of_filter_functions.append(F(var.filter_data, name='merged', criterion=filter_criterion))
-
-            # ʕ•ᴥ•ʔ
-            if options["filter_params"]:
-                # only filter when there were filter params passed
-                var.process(process_functions=list_of_filter_functions, exit_if_data_empty=False)
+            var.filter_batch_parameters(options['filter_params'], name='merged')
 
             output[group] = {
                 'data': var.merged.to_json(orient='index'),
@@ -2095,6 +2149,62 @@ class StructureInteractive(VariabilitySuper):
 
         self.progress.end()
         return output
+
+
+    def store_variability(self, options):
+        """Store the variability currently displayed on the user's screen in a user-specified path"""
+
+        try:
+            filesnpaths.is_output_file_writable(options['path'], ok_if_exists=False)
+
+            self.progress.new('Reporting', discard_previous_if_exists=True)
+            self.progress.update('Currently viewed variants')
+
+            selected_engine = options['engine']
+            gene_callers_id = int(options['gene_callers_id'])
+
+            # prior to filtering, var starts as a copy from variability_storage
+            var = copy.deepcopy(self.variability_storage[gene_callers_id][selected_engine]['var_object'])
+            var.convert_frequencies_to_counts()
+
+            # add selected samples into the filter parameters dictionary
+            selected_samples = []
+            for group in options['groups']:
+                selected_samples.extend(options['groups'][group])
+            options["filter_params"]['sample_id'] = {'sample_ids_of_interest': set(selected_samples)}
+
+            var.filter_batch_parameters(options['filter_params'])
+
+            var.output_file_path = options['path']
+            var.report()
+
+            self.progress.end()
+
+            return {'success': 'Success! Saved to %s' % options['path']}
+
+        except Exception as e:
+            return {'failure': 'Error: %s' % e}
+
+
+    def store_structure_as_pdb(self, options):
+        """Store the structure currently displayed on the user's screen in a user-specified path"""
+
+        try:
+            filesnpaths.is_output_file_writable(options['path'], ok_if_exists=False)
+
+            self.progress.new('Storing', discard_previous_if_exists=True)
+            self.progress.update('Currently viewed structure')
+
+            gene_callers_id = int(options['gene_callers_id'])
+            structure_db = structureops.StructureDatabase(self.structure_db_path, 'none', ignore_hash=True)
+            structure_db.export_pdb_content(gene_callers_id, options['path'], ok_if_exists=False)
+
+            self.progress.end()
+
+            return {'success': 'Success! Saved to %s' % options['path']}
+
+        except Exception as e:
+            return {'failure': 'Error: %s' % e}
 
 
     def get_histograms(self, var_object, column_info_list):
@@ -2113,10 +2223,11 @@ class StructureInteractive(VariabilitySuper):
 
             if column_info["as_filter"] in ["slider"]:
                 # make a number histogram
-                histogram_args = {}
-                histogram_args["range"] = (column_info["min"], column_info["max"])
-                histogram_args["bins"] = 15
-                values, bins = var_object.get_histogram(column, fix_offset=True, **histogram_args)
+                histogram_args = {
+                    'range': (column_info["min"], column_info["max"]),
+                    'bins': 30,
+                }
+                values, bins = var_object.get_histogram(column, fix_offset=False, **histogram_args)
 
             elif column_info["as_filter"] in ["checkbox"]:
                 # make a bar chart (categorical)

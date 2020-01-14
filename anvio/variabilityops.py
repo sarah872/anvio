@@ -584,7 +584,7 @@ class VariabilitySuper(VariabilityFilter, object):
             self.sanity_check()
 
         # Initialize the contigs super
-        if self.contigs_db_path:
+        if self.contigs_db_path and not self.table_provided:
             dbops.ContigsSuperclass.__init__(self, self.args, r=self.run, p=self.progress)
 
             if self.splits_of_interest_path:
@@ -746,6 +746,14 @@ class VariabilitySuper(VariabilityFilter, object):
             self.data[freq_columns] = self.data[self.items].divide(self.data['coverage'], axis = 0)
         else:
             self.data[self.items] = self.data[self.items].divide(self.data['coverage'], axis = 0)
+
+
+    def convert_frequencies_to_counts(self):
+        """Convert frequencies back to counts.
+
+        Assumes items were normalized with self.convert_counts_to_frequencies(retain_counts=False)
+        """
+        self.data[self.items] = self.data[self.items].multiply(self.data['coverage'], axis = 0).astype(int)
 
 
     def get_sample_ids_of_interest(self, sample_ids_of_interest_path=""):
@@ -1073,6 +1081,7 @@ class VariabilitySuper(VariabilityFilter, object):
 
 
     def load_structure_data(self):
+        """ Loads structure residue info from structure db as self.structure_residue_info """
         if not self.append_structure_residue_info:
             return
 
@@ -1584,6 +1593,54 @@ class VariabilitySuper(VariabilityFilter, object):
         return unique_positions_and_frequencies_dict
 
 
+    def filter_batch_parameters(self, filter_params, name='data'):
+        """Filter based on many simultaneous parameters()
+
+        Parameters
+        ==========
+        filter_params : dict
+            The dictionary containing all of the filtering parameters. An extensive example is shown here:
+            {'departure_from_consensus': {'min_departure_from_consensus': '0',
+            'max_departure_from_consensus': '1'}, 'departure_from_reference':
+            {'min_departure_from_reference': '0', 'max_departure_from_reference': '1'}, 'n2n1ratio':
+            {'min_n2n1ratio': '0.01', 'max_n2n1ratio': '1.01'}, 'coverage': {'min_coverage': '8',
+            'max_coverage': '2030'}, 'entropy': {'min_entropy': '0', 'max_entropy': '0.96'},
+            'rel_solvent_acc': {'min_rel_solvent_acc': '0', 'max_rel_solvent_acc': '1'},
+            'sec_struct': {'sec_structs_of_interest': ['C', 'S', 'G', 'H', 'T', 'I', 'E', 'B']},
+            'phi': {'min_phi': '-180', 'max_phi': '180'}, 'psi': {'min_psi': '-180', 'max_psi':
+            '180'}, 'BLOSUM62': {'min_BLOSUM62': '-4', 'max_BLOSUM62': '11'}, 'BLOSUM90':
+            {'min_BLOSUM90': '-6', 'max_BLOSUM90': '11'}, 'codon_order_in_gene':
+            {'min_codon_order_in_gene': '0', 'max_codon_order_in_gene': '396'}, 'codon_number':
+            {'min_codon_number': '1', 'max_codon_number': '397'}, 'competing_aas':
+            {'competing_aass_of_interest': ['IleVal', 'AspGlu', 'AlaSer', 'ArgLys', 'AlaGly',
+            'AspThr', 'MetVal', 'SerThr', 'AsnSer', 'IleLeu', 'AlaVal', 'LeuMet', 'LeuVal',
+            'PheTyr', 'AlaThr', 'AsnThr', 'ProThr', 'AsnLys', 'ProSer', 'CysVal', 'GlnSer',
+            'GlnLys', 'GlyLys', 'IleThr', 'GluSer', 'LysThr', 'AlaPro', 'HisPhe', 'IleMet',
+            'GlnGlu', 'ThrVal']}, 'reference': {'references_of_interest': ['Ile', 'Ala', 'Asp',
+            'Val', 'Glu', 'Lys', 'Gly', 'Ser', 'Thr', 'Arg', 'Asn', 'Leu', 'Tyr', 'Pro', 'Gln',
+            'His']}, 'consensus': {'consensuss_of_interest': ['Ile', 'Ala', 'Glu', 'Val', 'Asp',
+            'Gly', 'Arg', 'Thr', 'Lys', 'Ser', 'Asn', 'Leu', 'Tyr', 'Pro', 'Gln', 'His']}}
+        name : str
+             the string representation of the data you want to filter. By default its 'data', such
+             that self.data is filtered. if you have another dataframe, e.g. self.merged, used
+             'merged'
+        """
+
+
+        if not filter_params:
+            return
+
+        list_of_filter_functions = []
+        F = lambda f, **kwargs: (f, kwargs)
+        for filter_criterion, param_values in filter_params.items():
+            for param_name, param_value in param_values.items():
+                setattr(self, param_name, param_value)
+            list_of_filter_functions.append(F(self.filter_data, name=name, criterion=filter_criterion))
+
+        # V/\
+        self.process(process_functions=list_of_filter_functions, exit_if_data_empty=False)
+
+
     def process(self, process_functions=None, exit_if_data_empty=True):
         """self.data is checked if empty after each function call. if exit_if_data_empty, exists,
            otherwise returns prematurely."""
@@ -1600,12 +1657,27 @@ class VariabilitySuper(VariabilityFilter, object):
 
 
     def get_histogram(self, column, fix_offset=False, **kwargs):
-        """fix_offset can be provided if you're interested in returning the centre point of each bin
-           rather than the edges of each bin.
+        """ Return a histogram (counts and bins) for a specified column of self.data
 
-           **kwargs are the optional arguments of np.histogram
-           (https://docs.scipy.org/doc/numpy-1.14.0/reference/generated/numpy.histogram.html)
+        Parameters
+        ==========
+        column : str
+            The name of the column you want to get a histogram for. Must be numeric type
+        fix_offset : bool, False
+            If True, bins is set as the centre point for each bin, rather than the bin edges.
+            This decreases the length of bins by 1, since there is one less bin that there are
+            bin edges.
+        **kwargs : dict, optional
+            Any arguments of np.histogram
+            (https://docs.scipy.org/doc/numpy-1.14.0/reference/generated/numpy.histogram.html)
+
+        Returns
+        =======
+        (values, bins) : tuple
+            values are the counts in each bin, bins are either bin edges (fix_offset=False) or
+            centre-points of the bins (fix_offset=True)
         """
+
         if not pd.api.types.is_numeric_dtype(self.data[column]):
             raise ConfigError("get_histogram :: %s is not of numeric type" % (column))
 
@@ -1629,10 +1701,13 @@ class VariabilitySuper(VariabilityFilter, object):
 
 
     def get_residue_structure_information(self):
-        """
-        If by the end of all filtering there is no overlap between genes with variability and genes
-        with structure, this function raises a warning and the structure columns are not added to
-        the table. Otherwise this function appends the columns from residue_info to self.data
+        """ Merges self.structure_residue_info with self.data
+
+        Notes
+        =====
+        - If by the end of all filtering there is no overlap between genes with variability and genes
+          with structure, this function raises a warning and the structure columns are not added to
+          the table. Otherwise this function appends the columns from residue_info to self.data
         """
         if not self.append_structure_residue_info:
             return
@@ -1672,6 +1747,15 @@ class VariabilitySuper(VariabilityFilter, object):
 
 
     def compute_gene_coverage_fields(self):
+        """ Adds _gene_ coverage, not position coverage, to self.data.
+
+        Notes
+        =====
+        - Expensive operation
+        - Redundant (gene coverage is added to EVERY entry)
+        - Adds gene_coverage, non_outlier_gene_coverage, non_outlier_gene_coverage_std,
+          and mean_normalized_coverage
+        """
         if not self.compute_gene_coverage_stats:
             return
 
@@ -1747,10 +1831,10 @@ class VariabilitySuper(VariabilityFilter, object):
 
         new_structure, _ = self.get_data_column_structure()
 
-        if not self.include_contig_names_in_output:
+        if not self.include_contig_names_in_output and 'contig_name' in new_structure:
             new_structure.remove('contig_name')
 
-        if not self.include_split_names_in_output:
+        if not self.include_split_names_in_output and 'split_name' in new_structure:
             new_structure.remove('split_name')
 
         # Update entry_id with sequential numbers based on the final ordering of the data:
@@ -1761,7 +1845,7 @@ class VariabilitySuper(VariabilityFilter, object):
         data = data.sort_values(by = ["corresponding_gene_call", "codon_order_in_gene"])
 
         self.progress.update('exporting variable positions table as a TAB-delimited file ...')
-        utils.store_dataframe_as_TAB_delimited_file(data, self.args.output_file, columns=new_structure)
+        utils.store_dataframe_as_TAB_delimited_file(data, self.output_file_path, columns=new_structure)
         self.progress.end()
 
         self.run.info('Num entries reported', pp(len(data.index)))
@@ -1938,9 +2022,9 @@ class NucleotidesEngine(dbops.ContigsSuperclass, VariabilitySuper):
 class QuinceModeWrapperForFancyEngines(object):
     """A base class to recover quince mode data for both CDN and AA engines.
 
-       This wrapper exists outside of the actual classes for these engines since
-       the way they recover these frequencies is pretty much identical except one
-       place where the engine needs to be specifically.
+    This wrapper exists outside of the actual classes for these engines since
+    the way they recover these frequencies is pretty much identical except one
+    place where the engine needs to be specifically.
     """
     def __init__(self):
         if self.engine not in ['CDN', 'AA']:
@@ -2496,7 +2580,8 @@ class VariabilityData(NucleotidesEngine, CodonsEngine, AminoAcidsEngine):
 
 
 class VariabilityFixationIndex():
-    """
+    """ Calculates a fixation index matrix
+
     Metric adapted from 'Genomic variation landscape of the human gut microbiome'
     (https://media.nature.com/original/nature-assets/nature/journal/v493/n7430/extref/nature11711-s1.pdf)
     which extends the traditional metric to allow for multiple alleles in one site. We further
@@ -2627,7 +2712,21 @@ class VariabilityFixationIndex():
 
 
     def get_intra_sample_diversity(self, sample):
-        """Note: This measure is unnormalized"""
+        """Calculates the intra-sample diversity for a given sample_id.
+
+        Parameters
+        ==========
+        sample : str
+            A sample id
+
+        Returns
+        =======
+        pi : float
+            Unnormalized intra-sample diversity. What this means is that the result has not been
+            divided by the genome length. This is not an issue when calculating FST = 1 - (intra1 +
+            intra2)/2 / inter, since anvio also calculates an unnormalized inter-sample diversity,
+            so that the 1/genome_length factors cancel out.
+        """
         sample_data = self.v.data[self.v.data['sample_id'] == sample]
         coverages = sample_data['coverage'].values
         matrix = sample_data[self.v.items].values
@@ -2640,7 +2739,23 @@ class VariabilityFixationIndex():
 
 
     def get_inter_sample_diversity(self, sample_1, sample_2):
-        """Note: This measure is unnormalized"""
+        """Calculates the inter-sample diversity for a given sample_id.
+
+        Parameters
+        ==========
+        sample_1 : str
+            A sample id
+        sample_2 : str
+            A sample id
+
+        Returns
+        =======
+        pi : float
+            Unnormalized inter-sample diversity. What this means is that the result has not been
+            divided by the genome length. This is not an issue when calculating FST = 1 - (intra1 +
+            intra2)/2 / inter, since anvio also calculates an unnormalized intra-sample diversity,
+            so that the 1/genome_length factors cancel out.
+        """
         pairwise_data, tensor_shape = self.get_pairwise_data_and_shape(sample_1, sample_2)
 
         # V/\
@@ -2658,7 +2773,7 @@ class VariabilityFixationIndex():
         self.fst_matrix = np.zeros((dimension, dimension))
 
         indices_to_calculate = (dimension * (dimension + 1)) / 2
-        self.progress.new('Calculating pairwise fixation indices', progress_total_items=indices_to_calculate)
+        self.progress.new('Fixation index', progress_total_items=indices_to_calculate)
 
         for i, sample_1 in enumerate(sample_ids):
             for j, sample_2 in enumerate(sample_ids):

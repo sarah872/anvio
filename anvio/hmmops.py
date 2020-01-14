@@ -609,7 +609,7 @@ class SequencesForHMMHits:
             gene_names = genes_order
         else:
             self.run.warning("You did not define any gene names. Bold move. Now anvi'o will attempt to report a file with all\
-                              genes defined in all HMM sources. This will likely be quite ugly, so please brace yourself.")
+                              genes defined in your HMM source(s). This will likely be quite ugly, so please brace yourself.")
 
             gene_names = gene_names_in_dict
 

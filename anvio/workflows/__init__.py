@@ -8,9 +8,6 @@ import json
 import copy
 import snakemake
 
-from colored import fore, style, back
-from snakemake import *
-
 import anvio
 import anvio.utils as u
 import anvio.errors as errors
@@ -34,248 +31,7 @@ run = terminal.Run()
 progress = terminal.Progress()
 r = errors.remove_spaces
 
-
-class AnvioSnakeMakeLogger(object):
-    run = terminal.Run()
-    progress = terminal.Progress()
-    printreason = False
-
-    submitted_job_info_color_keys = 'yellow'
-    submitted_job_info_color = 'yellow'
-    finished_job_info_color_keys = 'green'
-    finished_job_info_color = 'green'
-
-    first_log = True
-    total_jobs = 0
-    jobs_done = 0
-
-    all_job_info = {}
-
-    @classmethod
-    def update_active_and_completed_job_msg(cls):
-        completed_jobs = {k: v for k, v in cls.all_job_info.items() if v['complete']}
-        active_jobs = {k: v for k, v in cls.all_job_info.items() if not v['complete']}
-
-        message = '%d of %d steps done; %d active job IDs: %s' % \
-                      (len(completed_jobs), cls.total_jobs, len(active_jobs), ','.join([str(job) for job in active_jobs]))
-
-        cls.progress.update(message)
-
-
-    @classmethod
-    def anvio_logger(cls, msg):
-        '''
-        FORMAT
-        ======
-
-        msg has the following entries depending on what level it contains:
-
-            :level:
-                the log level ('info', 'error', 'debug', 'progress', 'job_info')
-
-            :level='info', 'error' or 'debug':
-                :msg:
-                    the log message
-            :level='progress':
-                :done:
-                    number of already executed jobs
-
-                :total:
-                    number of total jobs
-
-            :level='job_info':
-                :input:
-                    list of input files of a job
-
-                :output:
-                    list of output files of a job
-
-                :log:
-                    path to log file of a job
-
-                :local:
-                    whether a job is executed locally (i.e. ignoring cluster)
-
-                :msg:
-                    the job message
-
-                :reason:
-                    the job reason
-
-                :priority:
-                    the job priority
-
-                :threads:
-                    the threads of the job
-        '''
-        if cls.first_log:
-            cls.progress.new('anvi-run-workflow')
-            cls.progress.update('Initializing')
-            cls.first_log = False
-
-        level = msg['level']
-
-        def timestamp():
-            cls.progress.clear()
-            print(fore.GREEN + '\n[' + terminal.get_date() + ']' + style.RESET)
-            cls.progress.update(cls.progress.msg)
-
-        format_value = lambda value, omit=None, valueformat=str: valueformat(value) if value != omit else None
-        format_wildcards = lambda wildcards: ', '.join(['%s=%s' % (k, v) for k, v in wildcards.items()])
-        format_resources = lambda resources: ', '.join(['%s=%s' % (k, v) for k, v in resources.items() if not k.startswith('_')])
-
-        if level == 'job_info':
-            if msg['msg'] is not None:
-                cls.run.info('Job %s' % msg['jobid'], msg['msg'], nl_before=0, nl_after=0, progress=cls.progress)
-                if cls.printreason:
-                    cls.run.info('Reason', msg['reason'], nl_before=0, nl_after=0, progress=cls.progress)
-            else:
-                cls.all_job_info[msg['jobid']] = msg
-                cls.all_job_info[msg['jobid']]['complete'] = False
-                cls.all_job_info[msg['jobid']]['timer'] = terminal.Timer()
-                cls.update_active_and_completed_job_msg()
-
-                cls.run.warning('', header='[SUBMITTING Job %s] %srule %s' % \
-                                    (msg['jobid'],
-                                     'local' if msg['local'] else '',
-                                     msg['name']),
-                                lc='yellow', nl_before=0, progress=cls.progress)
-
-                cls.run.info('timestamp', terminal.get_date(), progress=cls.progress, lc=cls.submitted_job_info_color_keys, mc=cls.submitted_job_info_color)
-
-                for item in ['input', 'output', 'log']:
-                    value = format_value(msg[item], omit=[], valueformat=', '.join)
-                    if value is not None:
-                        cls.run.info(item, value, progress=cls.progress, lc=cls.submitted_job_info_color_keys, mc=cls.submitted_job_info_color)
-
-                for item in ['jobid', 'benchmark'] + ([] if not cls.printreason else ['reason']):
-                    value = format_value(msg[item], omit=None)
-                    if value is not None:
-                        cls.run.info(item, value, progress=cls.progress, lc=cls.submitted_job_info_color_keys, mc=cls.submitted_job_info_color)
-
-                wildcards = format_wildcards(msg['wildcards'])
-                if wildcards:
-                    cls.run.info('wildcards', wildcards, progress=cls.progress, lc=cls.submitted_job_info_color_keys, mc=cls.submitted_job_info_color)
-
-                for item, omit in zip('priority threads'.split(), [0, 1]):
-                    value = format_value(msg[item], omit=omit)
-                    if value is not None:
-                        cls.run.info(item, value, progress=cls.progress, lc=cls.submitted_job_info_color_keys, mc=cls.submitted_job_info_color)
-
-                resources = format_resources(msg['resources'])
-                if resources:
-                    cls.run.info('resources', resources, progress=cls.progress, lc=cls.submitted_job_info_color_keys, mc=cls.submitted_job_info_color)
-
-        elif level == 'group_info':
-            try:
-                if anvio.DEBUG:
-                    print('never tested:')
-                timestamp()
-                cls.run.info_single('group job %s (jobs in lexicogr. order):' % str(msg['groupid']), progress=cls.progress)
-            except Exception as e:
-                print(e)
-                cls.run.warning("AnvioSnakeMakeLogger :: \'group_info\' log message has failed because it's never been tested. \
-                                 This is like finding a rare Pokémon. Please report the above error messages to the developers.",
-                                 header = 'DEVELOPER NOTE', progress=cls.progress, nl_after=0)
-
-        elif level == 'job_error':
-            timestamp()
-            cls.run.warning('An error in rule %s (job ID %s) has occurred.' % (msg['name'].strip(), msg['jobid']), 
-                            header = 'JobError', progress=cls.progress, nl_after=0)
-            if msg['output']:
-                cls.run.info('output', ', '.join(msg['output']), lc='red', mc='red', progress=cls.progress)
-            if msg['log']:
-                cls.run.info('log', ', '.join(msg['log']), lc='red', mc='red', progress=cls.progress)
-            if msg['conda_env']:
-                cls.run.info('conda-env', msg['conda_env'], lc='red', mc='red', progress=cls.progress)
-            for k, v in msg['aux'].items():
-                cls.run.info(k, v, progress=cls.progress, lc='red', mc='red')
-
-        elif level == 'group_error':
-            try:
-                if anvio.DEBUG:
-                    print('never tested:')
-                timestamp()
-                cls.run.warning('A group error in job ID %s has occurred.' % (msg['jobid']), 
-                                header = 'GroupError', progress=cls.progress, nl_after=0)
-            except Exception as e:
-                print(e)
-                cls.run.warning("AnvioSnakeMakeLogger :: \'group_error\' log message has failed because it's never been tested. \
-                                 This is like finding a rare Pokémon. Please report the above error messages to the developers.",
-                                 header = 'DEVELOPER NOTE', progress=cls.progress, nl_after=0)
-
-        else:
-            if level == 'info':
-                cls.run.info_single(msg['msg'], progress=cls.progress)
-            if level == 'warning':
-                cls.run.warning(msg['msg'], header='warning', progress=cls.progress)
-            elif level == 'error':
-                cls.run.warning(msg['msg'], header='SnakeMakeError', raw=True, progress=cls.progress)
-                if 'Exiting because a job execution failed.' in msg['msg']:
-                    cls.progress.end()
-                    cls.progress = None
-            elif level == 'debug':
-                if anvio.DEBUG:
-                    cls.run.warning(msg['msg'], header='debug', raw=True, progress=cls.progress)
-            elif level == 'resources_info':
-                cls.run.info_single(msg['msg'], progress=cls.progress)
-            elif level == 'run_info':
-                # we needed the total number of items from this string (I know) to start proper
-                # progress object (I know)
-                cls.total_jobs = int(msg['msg'].strip().split()[-1])
-                cls.progress.end()
-                cls.progress.new('anvi-run-workflow', progress_total_items=cls.total_jobs)
-                cls.progress.update('%d of %d steps done' % (cls.jobs_done, cls.total_jobs))
-
-                cls.progress.clear()
-                print(fore.CYAN + '\n' + msg['msg'] + style.RESET)
-                cls.progress.update(cls.progress.msg)
-            elif level == 'progress':
-                cls.total_jobs = msg['total']
-                cls.jobs_done = msg['done']
-                cls.progress.increment()
-                cls.update_active_and_completed_job_msg()
-            elif level == 'shellcmd':
-                cls.run.info('shell command', errors.remove_spaces(msg['msg'].strip()), progress=cls.progress, lc=cls.submitted_job_info_color_keys, mc='cyan')
-            elif level == 'job_finished':
-                cls.all_job_info[msg['jobid']]['complete'] = True
-                cls.all_job_info[msg['jobid']]['elapsed time'] = cls.all_job_info[msg['jobid']]['timer'].time_elapsed()
-                cls.run.warning('', header='[FINISHED Job %s] %srule %s' % \
-                                    (msg['jobid'],
-                                     'local' if cls.all_job_info[msg['jobid']]['local'] else '',
-                                     cls.all_job_info[msg['jobid']]['name']),
-                                lc='green', nl_before=0, progress=cls.progress)
-
-                cls.run.info('timestamp', terminal.get_date(), progress=cls.progress, lc=cls.finished_job_info_color_keys, mc=cls.finished_job_info_color)
-                cls.run.info('time taken', cls.all_job_info[msg['jobid']]['elapsed time'], progress=cls.progress, lc=cls.finished_job_info_color_keys, mc=cls.finished_job_info_color)
-                for item in ['output', 'log']:
-                    value = format_value(cls.all_job_info[msg['jobid']][item], omit=[], valueformat=', '.join)
-                    if value is not None:
-                        cls.run.info(item, value, progress=cls.progress, lc=cls.finished_job_info_color_keys, mc=cls.finished_job_info_color)
-
-            elif level == 'rule_info':
-                try:
-                    if anvio.DEBUG:
-                        print('never tested:')
-                    cls.run.info_single(msg['name'], progress=cls.progress)
-                    if msg['docstring']:
-                        cls.run.info('docstring', msg['docstring'], progress=cls.progress)
-                except Exception as e:
-                    print(e)
-                    cls.run.warning("AnvioSnakeMakeLogger :: \'rule_info\' log message has failed because it's never been tested. \
-                                     This is like finding a rare Pokémon. Please report the above error messages to the developers.",
-                                     header = 'DEVELOPER NOTE', progress=cls.progress, nl_after=0)
-            elif level == 'd3dag':
-                try:
-                    if anvio.DEBUG:
-                        print('never tested:')
-                    print('never tested')
-                    print(fore.YELLOW + json.dumps({'nodes': msg['nodes'], 'links': msg['edges']}) + style.RESET)
-                except Exception as e:
-                    print(e)
-                    cls.run.warning("AnvioSnakeMakeLogger :: \'d3dag\' log message has failed because it's never been tested. \
-                                     This is like finding a rare Pokémon. Please report the above error messages to the developers.",
-                                     header = 'DEVELOPER NOTE', progress=cls.progress, nl_after=0)
+workflow_config_version = "1"
 
 
 class WorkflowSuperClass:
@@ -328,6 +84,8 @@ class WorkflowSuperClass:
         self.rules_dependencies = {}
         self.forbidden_params = {}
 
+        self.log_script = os.path.join(os.path.dirname(os.path.abspath(anvio.__file__)), 'workflows', 'logger.py')
+
 
     def init(self):
         run.warning('Anvi\'o is initiating parameters for the %s workflow' % self.name, lc='yellow')
@@ -336,13 +94,12 @@ class WorkflowSuperClass:
             if rule not in self.rule_acceptable_params_dict:
                 self.rule_acceptable_params_dict[rule] = []
 
-            params_that_all_rules_must_accept = ['threads']
+            params_that_all_rules_must_accept = self.get_params_that_all_rules_accept()
             for param in params_that_all_rules_must_accept:
                 if param not in self.rule_acceptable_params_dict[rule]:
                     self.rule_acceptable_params_dict[rule].append(param)
 
-            general_params_that_all_workflows_must_accept = ['output_dirs', 'max_threads']
-            for param in general_params_that_all_workflows_must_accept:
+            for param in self.get_global_general_params():
                 if param not in self.general_params:
                     self.general_params.append(param)
 
@@ -370,12 +127,31 @@ class WorkflowSuperClass:
             self.check_rule_params()
 
 
+    def get_params_that_all_rules_accept(self):
+        return ['threads']
+
+
+    def get_global_general_params(self):
+        ''' Return a list of the general parameters that are always acceptable.'''
+        return ['output_dirs', 'max_threads', 'config_version', 'workflow_name']
+
+
     def sanity_checks(self):
         ''' each workflow has its own sanity checks but we only run these when we go'''
         # each workflow will overide this function with specific things to check
         pass
 
 
+    def warn_user_regarding_param_with_wildcard_default_value(self, rule_name, param, wildcard_name):
+        try:
+            default_value = self.default_config[rule_name][param]
+        except KeyError:
+            raise ConfigError('Someone is trying to read default values for parameters that\
+                               dont have default values. These are the offending rule names and\
+                               parameter: %s, %s' % (rule_name, param))
+        check_for_risky_param_change(self.config, rule_name, param, wildcard_name, default_value)
+
+ 
     def go(self, skip_dry_run=False):
         """Do the actual running"""
 
@@ -406,11 +182,11 @@ class WorkflowSuperClass:
             snakemake.main()
             sys.exit(0)
         else:
-            sys.argv.extend(['-p'])
+            sys.argv.extend(['-p', '--log-handler-script', self.log_script, '--quiet'])
             snakemake.main()
 
         # restore the `sys.argv` to the original for the sake of sakity (totally made up word,
-        # but you already know what it measn. you're welcome.)
+        # but you already know what it means. you're welcome.)
         sys.argv = original_sys_argv
 
 
@@ -492,19 +268,28 @@ class WorkflowSuperClass:
                                    missing :(")
 
     def check_config(self):
+        if not self.config.get('config_version'):
+            raise ConfigError("Config files must include a config_version. If this is news to you, and/or you don't know what\
+                               version your config should be, please run in your terminal the command `anvi-migrate %s` to\
+                               upgrade your config file." % (self.config_file))
+
+        if not self.config.get('workflow_name'):
+            raise ConfigError('Config files must contain a workflow_name. You can simply add a line that goes like\
+                               "workflow_name": "metagenomics" wherever appropriate.')
+
         acceptable_params = set(self.rules + self.general_params)
         wrong_params = [p for p in self.config if p not in acceptable_params]
         if wrong_params:
-            raise ConfigError("some of the parameters in your config file are not familiar to us. \
-                        Here is a list of the wrong parameters: %s. This workflow only accepts \
-                        the following general parameters: %s. And these are the rules in this \
-                        workflow: %s." % (wrong_params, self.general_params, self.rules))
+            raise ConfigError("Some of the parameters in your config file are not familiar to us. \
+                               Here is a list of the wrong parameters: %s. This workflow only accepts \
+                               the following general parameters: %s. And these are the rules in this \
+                               workflow: %s." % (wrong_params, self.general_params, self.rules))
 
         wrong_dir_names = [d for d in self.config.get("output_dirs", '') if d not in self.dirs_dict]
         if wrong_dir_names:
-            raise ConfigError("some of the directory names in your config file are not familiar to us. \
-                        Here is a list of the wrong directories: %s. This workflow only has \
-                        the following directories: %s." % (" ".join(wrong_dir_names), " ".join(list(self.dirs_dict.keys()))))
+            raise ConfigError("Some of the directory names in your config file are not familiar to us. \
+                               Here is a list of the wrong directories: %s. This workflow only has \
+                               the following directories: %s." % (" ".join(wrong_dir_names), " ".join(list(self.dirs_dict.keys()))))
 
         ## make sure max_threads is an integer number
         max_threads = self.get_param_value_from_config('max_threads')
@@ -518,6 +303,8 @@ class WorkflowSuperClass:
     def get_default_config(self):
         c = self.fill_empty_config_params(self.default_config)
         c["output_dirs"] = self.dirs_dict
+        c["config_version"] = workflow_config_version
+        c["workflow_name"] = self.name
         return c
 
 
@@ -600,39 +387,28 @@ class WorkflowSuperClass:
         f[a] = value
 
 
-    def get_param_value_from_config(self, _list, repress_default=False):
+    def get_param_value_from_config(self, _list):
         '''
             A helper function to make sense of config details.
             string_list is a list of strings (or a single string)
 
             this function checks if the strings in x are nested values in self.config.
             For example if x = ['a','b','c'] then this function checkes if the
-            value self.config['a']['b']['c'] exists, if it does then it is returned
-
-            repress_default - If there is a default defined for the parameter (it would be defined
-            under self.default_config), and the user didn't supply a parameter
-            then the default will be returned. If this flad (repress_default) is set to True
-            then this behaviour is repressed and instead an empty string would be returned.
-
+            value self.config['a']['b']['c'] exists, if it does then it is returned.
+            If it does not exist then None is returned.
         '''
         d = self.config
-        default_dict = self.default_config
         if type(_list) is not list:
             # converting to list for the cases of only one item
             _list = [_list]
         while _list:
             a = _list.pop(0)
-            default_dict = default_dict[a]
             try:
-                d = d.get(a, None)
+                d = d.get(a, "")
             except:
-                # we continue becuase we want to get the value from the default config
-                continue
+                return ""
 
-        if (d is not None) or repress_default:
-            return d
-        else:
-            return default_dict
+        return d
 
 
     def get_rule_param(self, _rule, _param):
@@ -709,7 +485,7 @@ class WorkflowSuperClass:
             internal_genomes_file = self.get_param_value_from_config('internal_genomes')
             external_genomes_file = self.get_param_value_from_config('external_genomes')
 
-            fasta_txt_file = self.get_param_value_from_config('fasta_txt', repress_default=True)
+            fasta_txt_file = self.get_param_value_from_config('fasta_txt')
             if fasta_txt_file and not external_genomes_file:
                 raise ConfigError('You provided a fasta_txt, but didn\'t specify a path for an external-genomes file. \
                                    If you wish to use external genomes, you must specify a name for the external-genomes \
@@ -770,9 +546,9 @@ def A(_list, d, default_value = ""):
         _list = [_list]
     while _list:
         a = _list.pop(0)
-        if a in d:
+        try:
             d = d[a]
-        else:
+        except:
             return default_value
     return d
 
@@ -836,9 +612,9 @@ def get_workflow_snake_file_path(workflow):
     return snakefile_path
 
 
-def warning_for_param(config, rule, param, wildcard, our_default=None):
+def check_for_risky_param_change(config, rule, param, wildcard, our_default=None):
     value = A([rule, param], config)
-    if value:
+    if value != our_default:
         warning_message = 'You chose to define %s for the rule %s in the config file as %s.\
                            while this is allowed, know that you are doing so at your own risk.\
                            The reason this is risky is because this rule uses a wildcard/wildcards\
@@ -857,251 +633,30 @@ def get_fields_for_fasta_information():
     return ["path", "external_gene_calls", "gene_functional_annotation"]
 
 
-def main(argv=None):
-    """
-    Allowing anvio to customize the output of snakemake comes at an ugly cost. snakemake allows
-    integration of a custom logger through its main entry point, `snakemake.snakemake()`, through
-    the parameter `log_handler=`. In our code we pass the function
-    `AnvioSnakeMakeLogger.anvio_logger` function as this parameter. Unfortunately, we call
-    `snakemake.snakemake()` through a wrapper function within snakemake called `snakemake.main()`,
-    which itself calls `snakemake.snakemake()` WITHOUT an option to pass `log_handler`. To
-    circumvent this shortcoming, the following function is a direct copy paste of the `5.2.4`
-    version of `snakemake.main()` with the following difference:
+def get_workflow_module_dict():
 
-    ```
-    -cluster_status=args.cluster_status)
-    +cluster_status=args.cluster_status,
-    +log_handler=AnvioSnakeMakeLogger.anvio_logger)
-    ```
+    from anvio.workflows.contigs import ContigsDBWorkflow
+    from anvio.workflows.metagenomics import MetagenomicsWorkflow
+    from anvio.workflows.pangenomics import PangenomicsWorkflow
+    from anvio.workflows.phylogenomics import PhylogenomicsWorkflow
 
-    To handle imports, `from snakemake import *` has been added to the top of the file.
+    workflows_dict = {'contigs': ContigsDBWorkflow,
+                      'metagenomics': MetagenomicsWorkflow,
+                      'pangenomics': PangenomicsWorkflow,
+                      'phylogenomics': PhylogenomicsWorkflow}
 
-    To use this function instead of snakemake's native function, `snakemake.main = main` has been
-    added to the bottom of this file
-    """
-    parser = get_argument_parser()
-    args = parser.parse_args(argv)
+    return workflows_dict
 
-    if args.profile:
-        # reparse args while inferring config file from profile
-        parser = get_argument_parser(args.profile)
-        args = parser.parse_args(argv)
-        def adjust_path(f):
-            if os.path.exists(f) or os.path.isabs(f):
-                return f
-            else:
-                return get_profile_file(args.profile, f, return_default=True)
 
-        # update file paths to be relative to the profile
-        # (if they do not exist relative to CWD)
-        if args.jobscript:
-            args.jobscript = adjust_path(args.jobscript)
-        if args.cluster:
-            args.cluster = adjust_path(args.cluster)
-        if args.cluster_sync:
-            args.cluster_sync = adjust_path(args.cluster_sync)
-        if args.cluster_status:
-            args.cluster_status = adjust_path(args.cluster_status)
+def get_workflow_name_and_version_from_config(config_file, dont_raise=False):
+    filesnpaths.is_file_json_formatted(config_file)
+    config = json.load(open(config_file))
+    workflow_name = config.get('workflow_name')
+    # Notice that if there is no config_version then we return "0".
+    # This is in order to accomodate early contig files that had no such parameter.
+    version = config.get('config_version', "0")
 
-    if args.bash_completion:
-        cmd = b"complete -o bashdefault -C snakemake-bash-completion snakemake"
-        sys.stdout.buffer.write(cmd)
-        sys.exit(0)
+    if (not dont_raise) and (not workflow_name):
+        raise ConfigError('Config files must contain a workflow_name.')
 
-    try:
-        resources = parse_resources(args)
-        config = parse_config(args)
-    except ValueError as e:
-        print(e, file=sys.stderr)
-        print("", file=sys.stderr)
-        parser.print_help()
-        sys.exit(1)
-
-    if (args.cluster or args.cluster_sync or args.drmaa):
-        if args.cores is None:
-            if args.dryrun:
-                args.cores = 1
-            else:
-                print(
-                    "Error: you need to specify the maximum number of jobs to "
-                    "be queued or executed at the same time with --jobs.",
-                    file=sys.stderr)
-                sys.exit(1)
-    elif args.cores is None:
-        args.cores = 1
-
-    if args.drmaa_log_dir is not None:
-        if not os.path.isabs(args.drmaa_log_dir):
-            args.drmaa_log_dir = os.path.abspath(os.path.expanduser(args.drmaa_log_dir))
-
-    if args.runtime_profile:
-        import yappi
-        yappi.start()
-
-    if args.immediate_submit and not args.notemp:
-        print(
-            "Error: --immediate-submit has to be combined with --notemp, "
-            "because temp file handling is not supported in this mode.",
-            file=sys.stderr)
-        sys.exit(1)
-
-    if (args.conda_prefix or args.create_envs_only) and not args.use_conda:
-        print(
-            "Error: --use-conda must be set if --conda-prefix or "
-            "--create-envs-only is set.",
-            file=sys.stderr)
-        sys.exit(1)
-
-    if args.singularity_prefix and not args.use_singularity:
-        print("Error: --use_singularity must be set if --singularity-prefix "
-              "is set.", file=sys.stderr)
-        sys.exit(1)
-
-    if args.delete_all_output and args.delete_temp_output:
-        print("Error: --delete-all-output and --delete-temp-output are mutually exclusive.", file=sys.stderr)
-        sys.exit(1)
-
-    if args.gui is not None:
-        try:
-            import snakemake.gui as gui
-        except ImportError:
-            print("Error: GUI needs Flask to be installed. Install "
-                  "with easy_install or contact your administrator.",
-                  file=sys.stderr)
-            sys.exit(1)
-
-        _logging.getLogger("werkzeug").setLevel(_logging.ERROR)
-
-        _snakemake = partial(snakemake, os.path.abspath(args.snakefile))
-        gui.register(_snakemake, args)
-
-        if ":" in args.gui:
-            host, port = args.gui.split(":")
-        else:
-            port = args.gui
-            host = "127.0.0.1"
-
-        url = "http://{}:{}".format(host, port)
-        print("Listening on {}.".format(url), file=sys.stderr)
-
-        def open_browser():
-            try:
-                webbrowser.open(url)
-            except:
-                pass
-
-        print("Open this address in your browser to access the GUI.",
-              file=sys.stderr)
-        threading.Timer(0.5, open_browser).start()
-        success = True
-
-        try:
-            gui.app.run(debug=False, threaded=True, port=int(port), host=host)
-
-        except (KeyboardInterrupt, SystemExit):
-            # silently close
-            pass
-    else:
-        success = snakemake(args.snakefile,
-                            report=args.report,
-                            listrules=args.list,
-                            list_target_rules=args.list_target_rules,
-                            cores=args.cores,
-                            local_cores=args.local_cores,
-                            nodes=args.cores,
-                            resources=resources,
-                            config=config,
-                            configfile=args.configfile,
-                            config_args=args.config,
-                            workdir=args.directory,
-                            targets=args.target,
-                            dryrun=args.dryrun,
-                            printshellcmds=args.printshellcmds,
-                            printreason=args.reason,
-                            debug_dag=args.debug_dag,
-                            printdag=args.dag,
-                            printrulegraph=args.rulegraph,
-                            printd3dag=args.d3dag,
-                            touch=args.touch,
-                            forcetargets=args.force,
-                            forceall=args.forceall,
-                            forcerun=args.forcerun,
-                            prioritytargets=args.prioritize,
-                            until=args.until,
-                            omit_from=args.omit_from,
-                            stats=args.stats,
-                            nocolor=args.nocolor,
-                            quiet=args.quiet,
-                            keepgoing=args.keep_going,
-                            cluster=args.cluster,
-                            cluster_config=args.cluster_config,
-                            cluster_sync=args.cluster_sync,
-                            drmaa=args.drmaa,
-                            drmaa_log_dir=args.drmaa_log_dir,
-                            kubernetes=args.kubernetes,
-                            kubernetes_envvars=args.kubernetes_env,
-                            container_image=args.container_image,
-                            jobname=args.jobname,
-                            immediate_submit=args.immediate_submit,
-                            standalone=True,
-                            ignore_ambiguity=args.allow_ambiguity,
-                            lock=not args.nolock,
-                            unlock=args.unlock,
-                            cleanup_metadata=args.cleanup_metadata,
-                            cleanup_conda=args.cleanup_conda,
-                            cleanup_shadow=args.cleanup_shadow,
-                            force_incomplete=args.rerun_incomplete,
-                            ignore_incomplete=args.ignore_incomplete,
-                            list_version_changes=args.list_version_changes,
-                            list_code_changes=args.list_code_changes,
-                            list_input_changes=args.list_input_changes,
-                            list_params_changes=args.list_params_changes,
-                            list_untracked=args.list_untracked,
-                            summary=args.summary,
-                            detailed_summary=args.detailed_summary,
-                            archive=args.archive,
-                            delete_all_output=args.delete_all_output,
-                            delete_temp_output=args.delete_temp_output,
-                            print_compilation=args.print_compilation,
-                            verbose=args.verbose,
-                            debug=args.debug,
-                            jobscript=args.jobscript,
-                            notemp=args.notemp,
-                            keep_remote_local=args.keep_remote,
-                            greediness=args.greediness,
-                            no_hooks=args.no_hooks,
-                            overwrite_shellcmd=args.overwrite_shellcmd,
-                            latency_wait=args.latency_wait,
-                            wait_for_files=args.wait_for_files,
-                            keep_target_files=args.keep_target_files,
-                            allowed_rules=args.allowed_rules,
-                            max_jobs_per_second=args.max_jobs_per_second,
-                            max_status_checks_per_second=args.max_status_checks_per_second,
-                            restart_times=args.restart_times,
-                            attempt=args.attempt,
-                            force_use_threads=args.force_use_threads,
-                            use_conda=args.use_conda,
-                            conda_prefix=args.conda_prefix,
-                            list_conda_envs=args.list_conda_envs,
-                            use_singularity=args.use_singularity,
-                            singularity_prefix=args.singularity_prefix,
-                            shadow_prefix=args.shadow_prefix,
-                            singularity_args=args.singularity_args,
-                            create_envs_only=args.create_envs_only,
-                            mode=args.mode,
-                            wrapper_prefix=args.wrapper_prefix,
-                            default_remote_provider=args.default_remote_provider,
-                            default_remote_prefix=args.default_remote_prefix,
-                            assume_shared_fs=not args.no_shared_fs,
-                            cluster_status=args.cluster_status,
-                            log_handler=AnvioSnakeMakeLogger.anvio_logger)
-
-    if args.runtime_profile:
-        with open(args.runtime_profile, "w") as out:
-            profile = yappi.get_func_stats()
-            profile.sort("totaltime")
-            profile.print_all(out=out)
-
-    sys.exit(0 if success else 1)
-
-snakemake.main = main
+    return (workflow_name, version)

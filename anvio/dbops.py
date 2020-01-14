@@ -2323,16 +2323,24 @@ class ProfileSuperclass(object):
                                flaw, but THANKS for reminding anyway... The best way to address this is to make sure all anvi'o\
                                profile and pan databases maintain a table with all item names they are supposed to be working with.")
 
-        # learn the number of mapped reads and set it in a nice variable
+        # learn the number of mapped reads and set it in a nice variable VERY CAREFULLY (blank profiles don't have it,
+        # and some ancient anvi'o databases may be lacking it).
         if self.p_meta['blank']:
-            self.num_mapped_reads_per_sample    = None
-        elif self.p_meta['merged']:
-            total_reads_mapped = [int(num_reads) for num_reads in self.p_meta['total_reads_mapped'].split(',')]
-            self.num_mapped_reads_per_sample = {self.p_meta['samples'][i]: total_reads_mapped[i] for i in range(0, len(self.p_meta['samples']))}
+            self.num_mapped_reads_per_sample = None
         else:
-            sample_name = self.p_meta['samples'][0]
-            keys, data = TableForLayerAdditionalData(self.args).get()
-            self.num_mapped_reads_per_sample = {sample_name: int(data[sample_name]['total_reads_mapped'])}
+            if self.p_meta['merged']:
+                if 'total_reads_mapped' not in self.p_meta:
+                    self.num_mapped_reads_per_sample = None
+                else:
+                    total_reads_mapped = [int(num_reads) for num_reads in self.p_meta['total_reads_mapped'].split(',')]
+                    self.num_mapped_reads_per_sample = {self.p_meta['samples'][i]: total_reads_mapped[i] for i in range(0, len(self.p_meta['samples']))}
+            else:
+                sample_name = self.p_meta['samples'][0]
+                keys, data = TableForLayerAdditionalData(self.args).get()
+                if 'total_reads_mapped' not in data[sample_name]:
+                    self.num_mapped_reads_per_sample = None
+                else:
+                    self.num_mapped_reads_per_sample = {sample_name: int(data[sample_name]['total_reads_mapped'])}
 
         profile_db.disconnect()
 
@@ -2625,6 +2633,16 @@ class ProfileSuperclass(object):
 
         # Lets ignore those pesty warnings...
         numpy.seterr(divide='ignore', over='ignore')
+
+        if not len(self.num_mapped_reads_per_sample):
+            raise ConfigError("Total read counts were not set for this database, without which INSEQ/Tn-SEQ coverage stats\
+                               can't be recovered :/ This number is automatically set by anvi'o during profiling given the\
+                               short read information in BAM files that match to contigs of interest. If you are working with\
+                               a 'blank' anvi'o profile database, there is no hope for you (since there is no BAM files involved\
+                               in that workflow), but if you are working with a legacy database there are other ways to set this\
+                               number (for instance, by using `anvi-db-info` program to set a `total_reads_mapped` variable).\
+                               If you want to do this but have no idea how this would work, please get in touch with the anvi'o\
+                               community and someone will help you :)")
 
         total_read_counts_in_sample = self.num_mapped_reads_per_sample[sample_name]
         gene_coverage_values_per_nt = split_coverage[sample_name][gene_start:gene_stop]
@@ -3429,10 +3447,15 @@ class ContigsDatabase:
         external_gene_calls = A('external_gene_calls')
         skip_mindful_splitting = A('skip_mindful_splitting')
         ignore_internal_stop_codons = A('ignore_internal_stop_codons')
+        store_partial_amino_acid_sequences = A('store_partial_amino_acid_sequences')
         prodigal_translation_table = A('prodigal_translation_table')
 
         if external_gene_calls:
             filesnpaths.is_file_exists(external_gene_calls)
+
+        if store_partial_amino_acid_sequences and not external_gene_calls:
+            raise ConfigError("Storing partial amino acid sequences is only relevant when external gene calls are used.\
+                               Please remove this parameter or provide an external gene calls file.")
 
         if external_gene_calls and skip_gene_calling:
             raise ConfigError("You provided a file for external gene calls, and used requested gene calling to be\
@@ -3583,7 +3606,11 @@ class ContigsDatabase:
 
             # if the user provided a file for external gene calls, use it. otherwise do the gene calling yourself.
             if external_gene_calls:
-                gene_calls_tables.use_external_gene_calls_to_populate_genes_in_contigs_table(input_file_path=external_gene_calls, ignore_internal_stop_codons=ignore_internal_stop_codons)
+                gene_calls_tables.use_external_gene_calls_to_populate_genes_in_contigs_table(
+                    input_file_path=external_gene_calls,
+                    ignore_internal_stop_codons=ignore_internal_stop_codons,
+                    store_partial_amino_acid_sequences=store_partial_amino_acid_sequences
+                )
             else:
                 gene_calls_tables.call_genes_and_populate_genes_in_contigs_table()
 
@@ -4012,11 +4039,19 @@ def add_items_order_to_db(anvio_db_path, order_name, order_data, order_data_type
 
         names_in_db = sorted(utils.get_all_item_names_from_the_database(anvio_db_path))
 
-        if names_in_db != names_in_data:
+        names_in_db_not_in_data = set(names_in_db) - set(names_in_data)
+        if names_in_db_not_in_data:
             raise ConfigError("Ehem. There is something wrong with the incoming items order data here :/ Basically,\
-                               the names found in your input data does not match to the item names found in the\
-                               database. Anvi'o is too lazy to find out what exactly differs, but just so you know\
-                               you're doing something wrong :/")
+                               the names found in your input data do not match to the item names found in the\
+                               database. For example, this item \"%s\" is in your database, but not in your input data\
+                               " % next(iter(names_in_db_not_in_data)))
+
+        names_in_data_not_in_db = set(names_in_data) - set(names_in_db)
+        if names_in_data_not_in_db:
+            raise ConfigError("Ehem. There is something wrong with the incoming items order data here :/ Basically,\
+                               the names found in your input data do not match to the item names found in the\
+                               database. For example, this item \"%s\" is in your input data, but not in your database\
+                               " % next(iter(names_in_data_not_in_db)))
 
     # additional data is JSON formatted entry
     # for now it will only contain collapsed node information.
