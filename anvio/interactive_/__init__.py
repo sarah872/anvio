@@ -79,6 +79,20 @@ class ElmApp():
 
         return content
 
+    @cherrypy.expose
+    def meta(self):
+        return json.dumps(self.flags)
+
+
+    @cherrypy.expose
+    def data(self, id=None):
+        if not id in self.flags.data:
+            raise cherrypy.HTTPError(status=404, message="Data not found.")
+
+        return serve_file(os.path.abspath(self.flags.data[id]),
+                          "application/x-download",
+                          "attachment")
+
 
     def load_project_flags(self, project_spec_file):
         default = {
