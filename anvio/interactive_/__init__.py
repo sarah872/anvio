@@ -36,7 +36,7 @@ class ElmApp():
 
         self.debug = True if anvio.__version__.endswith('-master') else False
         self.main = main or 'src/Main.elm'
-        self.dist = dist or ('/static/js/%sApp.js' % os.path.basename(app_root))
+        self.dist = dist or ('static/js/%sApp.js' % (os.path.basename(app_root)))
 
         self.web_root = Join(tempfile.mkdtemp(), 'app')
         shutil.copytree(app_root, self.web_root)
@@ -49,17 +49,26 @@ class ElmApp():
             except:
                 pass
 
+
+        try:
             output = subprocess.check_output(['elm',
                                               'make',
-                                              '--optimize' if not self.debug else '',
                                               self.main,
                                               '--output',
                                               self.dist])
+            return output
+        except Exception as e:
+            return str(e)
+
+
 
     @cherrypy.expose
     def index(self):
         os.chdir(self.web_root)
-        self.build()
+        try:
+            self.build()
+        except Exception as e:
+            return str(e)
 
         content = None
         with open('index.html', 'r') as f:
