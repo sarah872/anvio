@@ -4,6 +4,7 @@
 import os
 import sys
 import argparse
+import cherrypy
 
 import anvio
 import anvio.utils as utils
@@ -44,13 +45,12 @@ if __name__ == '__main__':
         genomes_storage_path = GetOrNone('genomes_storage')
         project_path = GetOrNone('project')
 
-        app_server = interactive.ElmApp(project = 'project.json',
-                                        app = Dirname(genome_viewer.__file__))
+        app = interactive.ElmApp(project = 'project.json',
+                                 app = Dirname(genome_viewer.__file__))
 
-        app_server.listen(ip=GetArg('ip_adress'),
-                          port=GetArg('port_number'))
-
-
+        cherrypy.server.socket_port = args.port_number
+        cherrypy.server.socket_host = GetOrNone('id_address') or '0.0.0.0'
+        cherrypy.quickstart(app)
     except ConfigError as e:
         print(e)
         sys.exit(-1)

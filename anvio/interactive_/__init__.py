@@ -4,8 +4,8 @@
 import os
 import sys
 import json
+import flask
 import shutil
-import falcon
 import tempfile
 
 import anvio
@@ -24,20 +24,6 @@ AbsolutePath = lambda x: os.path.abspath(x)
 Exist = lambda x: os.path.exists(x)
 Join = lambda *x: os.path.join(x)
 Dirname = lambda x: os.path.dirname(x)
-
-
-class RequestHandler():
-    def on_get(self, req, resp):
-        self.build()
-        resp.status = falcon.HTTP_200
-        resp.content_type = 'text/html'
-        with open('index.html', 'r') as f:
-            resp.body = f.read()
-
-
-    def on_post(self, req, resp):
-        # Here we can implement write, update operations, later.
-        pass
 
 
 class ElmApp():
