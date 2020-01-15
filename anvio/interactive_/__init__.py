@@ -53,7 +53,7 @@ class ElmApp():
                                               self.dist))
 
     @cherrypy.expose
-    def index(self
+    def index(self):
         return "Hello World"
 
 
@@ -77,9 +77,9 @@ class HomepageApplication():
         return "anvi'o interactive homepage placeholder"
 
 
-class HttpServer()
+class HttpServer():
     def __init__(self, ip_address = None
-                     , port = None
+                     , port = None):
         cherrypy.tree.mount(HomepageApplication(), '/')
         cherrypy.config.update({'server.socket_host': ip_address or '0.0.0.0',
                                 'server.socket_port': port or 8080,

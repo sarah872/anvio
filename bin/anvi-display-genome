@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
         app = interactive.ElmApp(project = 'project.json')
 
-        server = interactive.HttpServer(id_adress = GetOrNone('ip_address'),
+        server = interactive.HttpServer(ip_address = GetOrNone('ip_address'),
                                port = GetOrNone('port_number'))
 
         server.run_application(app, '/genome')
