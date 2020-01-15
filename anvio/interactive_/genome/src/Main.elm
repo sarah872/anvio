@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (..)
-import Model exposing (defaultModel)
+import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
 
@@ -37,7 +37,7 @@ main =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( defaultModel
-    , NoOp
+    , Cmd.none
     )
 
 
@@ -57,5 +57,5 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NoOp ->
-            Nothing
+        _ ->
+            ( model, Cmd.none )
