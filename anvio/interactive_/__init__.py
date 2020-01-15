@@ -55,10 +55,12 @@ class ElmApp():
                                               'make',
                                               self.main,
                                               '--output',
-                                              self.dist])
+                                              self.dist],
+                                              cwd = self.web_root)
+        except subprocess.CalledProcessError as exc:
+            return exc.output
+        else:
             return output
-        except Exception as e:
-            return str(e)
 
 
 
@@ -101,10 +103,9 @@ class HomepageApplication():
 class HttpServer():
     def __init__(self, ip_address = None
                      , port = None):
-        cherrypy.tree.mount(HomepageApplication(), '/')
         cherrypy.config.update({'server.socket_host': ip_address or '0.0.0.0',
-                                'server.socket_port': port or 8080,
-                               })
+                                'server.socket_port': port or 8080})
+        cherrypy.tree.mount(HomepageApplication(), '/')
 
     def run_application(self, application, mount = '/'):
         cherrypy.tree.mount(application, mount)
