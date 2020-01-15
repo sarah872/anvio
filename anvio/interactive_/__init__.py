@@ -7,6 +7,7 @@ import json
 import shutil
 import tempfile
 import cherrypy
+import subprocess
 
 import anvio
 import anvio.db as db
@@ -27,44 +28,43 @@ Dirname = lambda x: os.path.dirname(x)
 
 
 class ElmApp():
-    def __init__(self, project = None,
-                       app_root = None,
-                       main = 'src/Main.elm',
-                       dist = 'dist/main.js',
-                       debug = True if anvio.__version__.endswith('-master') else False,
-                       ):
+    def __init__(self, project = None, app_root = None, main = None, dist = None):
         utils.is_program_exists('elm')
 
         if not app_root:
             raise Exception("Please specify what application to run. ")
 
-        self.debug = debug
-        self.main = main
-        self.dist = dist
+        self.debug = True if anvio.__version__.endswith('-master') else False
+        self.main = main or 'src/Main.elm'
+        self.dist = dist or ('/static/js/%sApp.js' % os.path.basename(app_root))
 
         self.web_root = Join(tempfile.mkdtemp(), 'app')
         shutil.copytree(app_root, self.web_root)
 
 
     def build(self):
-        if (not Exists(Join(self.web_root, dist))) or self.debug:
-            if self.debug:
+        if ((not Exist(self.dist)) or self.debug):
+            try:
                 os.remove(self.dist)
+            except:
+                pass
 
-            # TO DO: Building dist, maybe parse output in future?
-            # and return error to the web interface? or create dump file and
-            # show github link.
-            os.system("elm make \
-                       %s %s --output %s" % ('--optimize' if self.debug else '',
-                                              Join(self.web_root, self.main),
-                                              Join(self.web_root, self.dist)))
+            output = subprocess.check_output(['elm',
+                                              'make',
+                                              '--optimize' if not self.debug else '',
+                                              self.main,
+                                              '--output',
+                                              self.dist])
 
     @cherrypy.expose
     def index(self):
+        os.chdir(self.web_root)
+        self.build()
+
         content = None
-        with open(Join(self.web_root, 'index.html'), 'r') as f:
+        with open('index.html', 'r') as f:
             content = f.read()
-            content = content.replace('{dist}', self.dist)
+            content = content.replace('{{dist}}', self.dist)
 
         return content
 
