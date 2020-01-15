@@ -4,9 +4,9 @@
 import os
 import sys
 import json
-import flask
 import shutil
 import tempfile
+import cherrypy
 
 import anvio
 import anvio.db as db
@@ -28,7 +28,7 @@ Dirname = lambda x: os.path.dirname(x)
 
 class ElmApp():
     def __init__(self, project = None,
-                       app = None,
+                       root = None,
                        main = 'src/Main.elm',
                        dist = 'dist/main.js',
                        debug = True if anvio.__version__.endswith('-master') else False,
@@ -36,17 +36,8 @@ class ElmApp():
         utils.is_program_exists('elm')
 
         self.debug = debug
-        self.web_root = app
-        self.using_temp_web_root = False
-
         self.main = main
         self.dist = dist
-
-        if not os.access(AbsolutePath(self.web_root), os.W_OK):
-            self.web_root = Join(tempfile.mkdtemp(), 'app')
-            shutil.copytree(app, self.web_root)
-            self.using_temp_web_root = True
-
 
     def build(self):
         if (not Exists(Join(self.web_root, dist))) or self.debug:
@@ -61,6 +52,11 @@ class ElmApp():
                                               self.main,
                                               self.dist))
 
+    @cherrypy.expose
+    def index(self
+        return "Hello World"
+
+
     def load_project_flags(self, project_spec_file):
         default = {
             "name": "Unnamed Project",
@@ -72,10 +68,26 @@ class ElmApp():
         self.flags = default
 
 
-    def __del__(self):
-        # Clean up the clutter.
-        if self.using_temp_web_root:
-            if self.debug:
-                run.info('Keeping path for debug', self.web_root)
-            else:
-                shutil.rmtree(self.web_root)
+class HomepageApplication():
+    def __init__(self):
+        pass
+
+    @cherrypy.expose
+    def index(self):
+        return "anvi'o interactive homepage placeholder"
+
+
+class HttpServer()
+    def __init__(self, ip_address = None
+                     , port = None
+        cherrypy.tree.mount(HomepageApplication(), '/')
+        cherrypy.config.update({'server.socket_host': ip_address or '0.0.0.0',
+                                'server.socket_port': port or 8080,
+                               })
+
+    def run_application(self, application, mount = '/'):
+        cherrypy.tree.mount(application, mount)
+
+    def start(self):
+        cherrypy.engine.start()
+        cherrypy.engine.block()
