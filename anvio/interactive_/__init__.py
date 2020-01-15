@@ -22,22 +22,29 @@ pp = terminal.pretty_print
 
 AbsolutePath = lambda x: os.path.abspath(x)
 Exist = lambda x: os.path.exists(x)
-Join = lambda *x: os.path.join(x)
+Join = lambda *x: os.path.join(*x)
 Dirname = lambda x: os.path.dirname(x)
 
 
 class ElmApp():
     def __init__(self, project = None,
-                       root = None,
+                       app_root = None,
                        main = 'src/Main.elm',
                        dist = 'dist/main.js',
                        debug = True if anvio.__version__.endswith('-master') else False,
                        ):
         utils.is_program_exists('elm')
 
+        if not app_root:
+            raise Exception("Please specify what application to run. ")
+
         self.debug = debug
         self.main = main
         self.dist = dist
+
+        self.web_root = Join(tempfile.mkdtemp(), 'app')
+        shutil.copytree(app_root, self.web_root)
+
 
     def build(self):
         if (not Exists(Join(self.web_root, dist))) or self.debug:
@@ -49,12 +56,17 @@ class ElmApp():
             # show github link.
             os.system("elm make \
                        %s %s --output %s" % ('--optimize' if self.debug else '',
-                                              self.main,
-                                              self.dist))
+                                              Join(self.web_root, self.main),
+                                              Join(self.web_root, self.dist)))
 
     @cherrypy.expose
     def index(self):
-        return "Hello World"
+        content = None
+        with open(Join(self.web_root, 'index.html'), 'r') as f:
+            content = f.read()
+            content = content.replace('{dist}', self.dist)
+
+        return content
 
 
     def load_project_flags(self, project_spec_file):

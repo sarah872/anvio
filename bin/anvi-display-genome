@@ -45,7 +45,8 @@ if __name__ == '__main__':
         genomes_storage_path = GetOrNone('genomes_storage')
         project_path = GetOrNone('project')
 
-        app = interactive.ElmApp(project = 'project.json')
+        app = interactive.ElmApp(project = 'project.json',
+                                app_root = Dirname(genome_viewer.__file__))
 
         server = interactive.HttpServer(ip_address = GetOrNone('ip_address'),
                                port = GetOrNone('port_number'))
