@@ -7,6 +7,15 @@
     <script src="{{dist}}"></script>
   </head>
   <body>
-    <script>var app = Elm.Main.init();</script>
+    <script>
+      fetch('meta')
+        .then((response) => {
+          return response.json();
+        })
+        .then((meta) => {
+          window.meta = meta;
+        });
+        var app = Elm.Main.init();
+    </script>
   </body>
 </html>

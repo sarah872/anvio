@@ -28,7 +28,7 @@ Dirname = lambda x: os.path.dirname(x)
 
 
 class ElmApp():
-    def __init__(self, project = None, app_root = None, main = None, dist = None):
+    def __init__(self, project_file = None, app_root = None, main = None, dist = None):
         utils.is_program_exists('elm')
 
         if not app_root:
@@ -40,6 +40,8 @@ class ElmApp():
 
         self.web_root = Join(tempfile.mkdtemp(), 'app')
         shutil.copytree(app_root, self.web_root)
+        
+        self.project = self.load_project_flags(AbsolutePath(project_file))
 
 
     def build(self):
@@ -102,7 +104,7 @@ class ElmApp():
         }
 
         # TO DO: actually loads/process project.json
-        self.flags = default
+        return default
 
 
 class HomepageApplication():
