@@ -40,7 +40,7 @@ class ElmApp():
 
         self.web_root = Join(tempfile.mkdtemp(), 'app')
         shutil.copytree(app_root, self.web_root)
-        
+
         self.project = self.load_project_flags(AbsolutePath(project_file))
 
 
@@ -103,7 +103,18 @@ class ElmApp():
             "data": {}
         }
 
-        # TO DO: actually loads/process project.json
+        flags = {}
+        try:
+            with open(project_spec_file, 'r') as f:
+                flags = json.loads(f.read())
+        except:
+            run.warning("'%s' is not a valid anvi'o project specification file.\
+                        Using default, please use '--debug' to see full flags.")
+
+            if self.debug:
+                print(json.dumps(default, indent=4)
+
+        default.update(flags)
         return default
 
 
