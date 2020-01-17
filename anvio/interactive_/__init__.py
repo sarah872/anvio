@@ -136,10 +136,17 @@ class HttpServer():
                      , port = None):
         cherrypy.config.update({'server.socket_host': ip_address or '0.0.0.0',
                                 'server.socket_port': port or 8080})
+
         cherrypy.tree.mount(HomepageApplication(), '/')
 
     def run_application(self, application, mount = '/'):
-        cherrypy.tree.mount(application, mount)
+        cherrypy.tree.mount(application, mount, config = {
+          '/static' : {
+            'tools.staticdir.on' : True,
+            'tools.staticdir.dir' : os.path.join(application.web_root, 'static'),
+            'tools.staticdir.content_types' : {'html': 'application/octet-stream'}
+          }
+        })
 
     def start(self):
         cherrypy.engine.start()
