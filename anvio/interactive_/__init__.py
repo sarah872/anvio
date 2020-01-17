@@ -103,12 +103,6 @@ class ElmApp():
         if not dataId in self.project_flags['data']:
             raise cherrypy.HTTPError(status=404, message="Data not found.")
 
-        print(AbsolutePath(
-                            Join(
-                                Dirname(self.project_file_path),
-                                self.project_flags['data'][dataId]
-                                )
-                          ))
         return serve_file(AbsolutePath(
                             Join(
                                 Dirname(self.project_file_path),

@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (..)
+import Html.Attributes exposing (..)
 import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
@@ -47,8 +48,13 @@ init _ =
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ text "hello world" ]
+    div [ class "o-grid--full" ]
+        [ div [ class "o-grid__cell" ]
+            [ plotData model ]
+        , node "aside"
+            [ class "o-drawer u-highest o-drawer--left o-drawer--visible" ]
+            [ text "Left menu" ]
+        ]
 
 
 
