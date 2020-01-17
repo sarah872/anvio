@@ -9,6 +9,7 @@ import tempfile
 import cherrypy
 import subprocess
 from datetime import datetime
+from cherrypy.lib.static import serve_file
 
 import anvio
 import anvio.db as db
@@ -47,6 +48,7 @@ class ElmApp():
 
         run.info('Web root', self.web_root)
 
+        self.project_file_path = project_file
         self.project_flags = self.load_project_flags(AbsolutePath(project_file))
 
 
@@ -97,11 +99,22 @@ class ElmApp():
 
 
     @cherrypy.expose
-    def data(self, id=None):
-        if not id in self.flags.data:
+    def data(self, dataId = None):
+        if not dataId in self.project_flags['data']:
             raise cherrypy.HTTPError(status=404, message="Data not found.")
 
-        return serve_file(os.path.abspath(self.flags.data[id]),
+        print(AbsolutePath(
+                            Join(
+                                Dirname(self.project_file_path),
+                                self.project_flags['data'][dataId]
+                                )
+                          ))
+        return serve_file(AbsolutePath(
+                            Join(
+                                Dirname(self.project_file_path),
+                                self.project_flags['data'][dataId]
+                                )
+                          ),
                           "application/x-download",
                           "attachment")
 
@@ -117,6 +130,10 @@ class ElmApp():
         try:
             with open(project_spec_file, 'r') as f:
                 flags = json.loads(f.read())
+
+                if self.debug:
+                    print("Found and loading %s" % project_spec_file)
+                    print(json.dumps(flags, indent=4))
 
                 for key, value in flags.items():
                     default[key] = value

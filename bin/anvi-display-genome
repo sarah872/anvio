@@ -20,7 +20,7 @@ progress = terminal.Progress()
 
 AbsolutePath = lambda x: os.path.abspath(x)
 Exist = lambda x: os.path.exists(x)
-Join = lambda *x: os.path.join(x)
+Join = lambda *x: os.path.join(*x)
 Dirname = lambda x: os.path.dirname(x)
 
 
@@ -45,7 +45,7 @@ if __name__ == '__main__':
         genomes_storage_path = GetOrNone('genomes_storage')
         project_path = GetOrNone('project')
 
-        app = interactive.ElmApp(project_file = 'project.json',
+        app = interactive.ElmApp(project_file = AbsolutePath(Join(os.getcwd(), project_path or 'project.json')),
                                 app_root = Dirname(genome_viewer.__file__))
 
         server = interactive.HttpServer(ip_address = GetOrNone('ip_address'),
