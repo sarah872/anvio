@@ -47,10 +47,13 @@ init _ =
 
 view : Model -> Html Msg
 view model =
-    plotData model
+    div []
+        [ text "hello world" ]
 
 
 
+-- plotData
+-- model
 -- UPDATE
 
 

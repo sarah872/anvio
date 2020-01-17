@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import cherrypy
 import subprocess
+from datetime import datetime
 
 import anvio
 import anvio.db as db
@@ -38,9 +39,13 @@ class ElmApp():
         self.main = main or 'src/Main.elm'
         self.dist = dist or ('static/js/%sApp.js' % (os.path.basename(app_root)))
 
-        self.web_root = Join(tempfile.mkdtemp(), 'app')
-        shutil.copytree(app_root, self.web_root)
-        run.info('Web root',self.web_root)
+        self.web_root = app_root
+
+        if not self.debug:
+            self.web_root = Join(tempfile.mkdtemp(), 'app')
+            shutil.copytree(app_root, self.web_root)
+
+        run.info('Web root', self.web_root)
 
         self.project_flags = self.load_project_flags(AbsolutePath(project_file))
 
@@ -71,7 +76,11 @@ class ElmApp():
     def index(self):
         os.chdir(self.web_root)
         try:
-            self.build()
+            output = self.build()
+            now = datetime.now()
+            run.info_single("%s (%s, %s)." % ("Built successfull",
+                                            now.strftime("%d/%m/%Y %H:%M:%S"),
+                                            self.dist))
         except Exception as e:
             return str(e)
 
