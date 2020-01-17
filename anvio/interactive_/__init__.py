@@ -40,8 +40,9 @@ class ElmApp():
 
         self.web_root = Join(tempfile.mkdtemp(), 'app')
         shutil.copytree(app_root, self.web_root)
+        run.info('Web root',self.web_root)
 
-        self.project = self.load_project_flags(AbsolutePath(project_file))
+        self.project_flags = self.load_project_flags(AbsolutePath(project_file))
 
 
     def build(self):
@@ -83,7 +84,7 @@ class ElmApp():
 
     @cherrypy.expose
     def meta(self):
-        return json.dumps(self.flags)
+        return json.dumps(self.project_flags)
 
 
     @cherrypy.expose
@@ -107,14 +108,17 @@ class ElmApp():
         try:
             with open(project_spec_file, 'r') as f:
                 flags = json.loads(f.read())
+
+                for key, value in flags.items():
+                    default[key] = value
         except:
-            run.warning("'%s' is not a valid anvi'o project specification file.\
-                        Using default, please use '--debug' to see full flags.")
+            run.warning("'%s' is not a valid anvi'o project specification file. \
+                        Using default, please use '--debug' to see full flags." %
+                        project_spec_file)
 
             if self.debug:
-                print(json.dumps(default, indent=4)
+                print(json.dumps(default, indent=4))
 
-        default.update(flags)
         return default
 
 
