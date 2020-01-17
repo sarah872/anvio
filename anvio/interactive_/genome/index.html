@@ -9,17 +9,26 @@
   <body>
     <div id="elm"></div>
     <script>
-      fetch('meta')
-        .then((response) => {
-          return response.json();
-        })
-        .then((meta) => {
-          window.meta = meta;
-        });
+      async function initApp() {
+          const metaResponse = await fetch('meta');
+          const meta = await metaResponse.json();
 
-      var app = Elm.Main.init({
-          node: document.getElementById('elm')
-      });
+          window.meta = meta;
+          window.data = {};
+
+          Object.entries(window.meta.data).forEach(async function([dataId, details]) {
+            console.log(`Fetching ${dataId}`);
+            const content = await fetch(`data/${dataId}`);
+            const arrayBuffer = await content.arrayBuffer();
+            console.log(arrayBuffer);
+          });
+
+          var app = Elm.Main.init({
+              node: document.getElementById('elm')
+          });
+      }
+
+      initApp();
     </script>
   </body>
 </html>
