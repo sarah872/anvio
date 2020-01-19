@@ -51,47 +51,34 @@ class ElmApp():
         self.project_file_path = project_file
         self.project_flags = self.load_project_flags(AbsolutePath(project_file))
 
-
-    def build(self):
-        if ((not Exist(self.dist)) or self.debug):
-            try:
-                os.remove(self.dist)
-            except:
-                pass
-
-
-        try:
-            output = subprocess.check_output(['elm',
-                                              'make',
-                                              self.main,
-                                              '--output',
-                                              self.dist],
-                                              cwd = self.web_root)
-        except subprocess.CalledProcessError as exc:
-            return exc.output
-        else:
-            return output
-
-
-
     @cherrypy.expose
     def index(self):
-        os.chdir(self.web_root)
         try:
-            output = self.build()
+            subprocess.check_output(['elm',
+                                     'make', self.main,
+                                     '--output', self.dist,
+                                     '--report', 'json'],
+                                    cwd = self.web_root,
+                                    stderr = subprocess.STDOUT,
+                                    universal_newlines = True)
+
             now = datetime.now()
             run.info_single("%s (%s, %s)." % ("Built successfull",
                                             now.strftime("%d/%m/%Y %H:%M:%S"),
                                             self.dist))
-        except Exception as e:
-            return str(e)
 
-        content = None
-        with open('index.html', 'r') as f:
-            content = f.read()
-            content = content.replace('{{dist}}', self.dist)
+        except subprocess.CalledProcessError as exc:
+            body = "<html><head>" \
+                   "<script src='/static/js/errors.js'></script>" \
+                   "</head>" \
+                   "<body><script>" \
+                   "Elm.Errors.init({flags: " + exc.output + "});" \
+                   "</script></body></html>"
+            return body
 
-        return content
+        with open(Join(self.web_root, 'index.html'), 'r') as f:
+            return f.read().replace('{{dist}}', self.dist)
+
 
     @cherrypy.expose
     def meta(self):
@@ -157,7 +144,13 @@ class HttpServer():
         cherrypy.config.update({'server.socket_host': ip_address or '0.0.0.0',
                                 'server.socket_port': port or 8080})
 
-        cherrypy.tree.mount(HomepageApplication(), '/')
+        cherrypy.tree.mount(HomepageApplication(), '/', config = {
+          '/static' : {
+            'tools.staticdir.on' : True,
+            'tools.staticdir.dir' : Join(Dirname(__file__), 'static'),
+            'tools.staticdir.content_types' : {'html': 'application/octet-stream'}
+          }
+        })
 
     def run_application(self, application, mount = '/'):
         cherrypy.tree.mount(application, mount, config = {
