@@ -10,36 +10,52 @@
     <div id="elm"></div>
     <script>
       {{dist}}
+
+      let dataMapConfig = {
+        contigs : { db : 'genome_storage', table : 'contigs_basic_info'},
+        genes : { db : 'genome_storage', table : 'genes_in_contigs'},
+      }
+
       async function initApp() {
           const metaResponse = await fetch('meta');
           const meta = await metaResponse.json();
+          const SQL = await initSqlJs({ locateFile: filename => `/static/js/${filename}` });
 
-          initSqlJs({ locateFile: filename => `/static/js/${filename}` })
-            .then((SQL) => {
-              Object.entries(meta.data).forEach(async function([dataId, details]) {
-                console.log(`Fetching ${dataId}`);
-                const content = await fetch(`data/${dataId}`);
-                const arrayBuffer = await content.arrayBuffer();
-                let uInt8Array = new Uint8Array(arrayBuffer);
-                let db = new SQL.Database(uInt8Array);
+          let databases = {}
+          let flags = {
+            data : {
+            }
+          };
 
-                if (dataId == 'genome_storage') {
-                    let { columns, values } = db.exec(`select * from contigs_basic_info;`)[0];
-                    var app = Elm.Main.init({
-                        node: document.getElementById('elm'),
-                        flags: {
-                          'contigs': values.map((row) => {
-                            return row.reduce((obj, v, i) => {
-                              let col = columns[i];
-                              obj[(col == 'contig') ? 'name' : col] = v;
-                              return obj;
-                            }, {});
-                          })
-                        }
-                    });
-                }
-              });
-            });
+          let _dbs = {};
+          let getRecords = async (db, query) => {
+            let dbObj;
+            if (_dbs.hasOwnProperty(db)) {
+              // Read from cache
+              dbObj = _dbs[db];
+            }
+            else {
+              const content = await fetch(`data/${db}`);
+              const arrayBuffer = await content.arrayBuffer();
+              const uInt8Array = new Uint8Array(arrayBuffer);
+
+              dbObj = new SQL.Database(uInt8Array);
+              _dbs[db] = dbObj;
+            }
+
+            return dbObj.exec(query)[0];
+          }
+
+          for (const [ dataId, source ] of Object.entries(dataMapConfig)) {
+            let stmt = `select * from ${source.table};`;
+            let { columns, values } = await getRecords(source.db, stmt);
+            flags.data[dataId] = values;
+          }
+
+          var app = Elm.Main.init({
+                      node: document.getElementById('elm'),
+                      flags: flags
+          });
       }
 
       initApp();
