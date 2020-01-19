@@ -13,6 +13,7 @@ plotData model =
     svg
         [ width "100%"
         , height "100%"
+        , Svg.Attributes.style "position: fixed"
         ]
         (genContigBackgrounds
             model
@@ -21,13 +22,13 @@ plotData model =
 
 genContigBackgrounds : Model -> List (Svg msg)
 genContigBackgrounds model =
-    List.map
-        (\contig ->
+    List.indexedMap
+        (\index contig ->
             rect
                 [ x "0"
                 , y
                     (String.fromInt
-                        (1 * (model.contigBarHeight + model.gap))
+                        (index * (model.contigBarHeight + model.gap))
                     )
                 , width (String.fromInt contig.length)
                 , height (String.fromInt model.contigBarHeight)
