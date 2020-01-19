@@ -6,6 +6,16 @@ import Html.Attributes exposing (..)
 import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
+import Types exposing (Contig)
+
+
+
+-- Flags
+
+
+type alias Flags =
+    { contigs : List Contig
+    }
 
 
 
@@ -21,9 +31,9 @@ type Msg
 -- MAIN
 
 
-main : Program () Model Msg
+main : Program Flags Model Msg
 main =
-    Browser.element
+    Browser.document
         { init = init
         , view = view
         , update = update
@@ -46,15 +56,20 @@ init _ =
 -- VIEW
 
 
-view : Model -> Html Msg
+view : Model -> Browser.Document msg
 view model =
-    div [ class "o-grid--full" ]
-        [ div [ class "o-grid__cell" ]
-            [ plotData model ]
-        , node "aside"
-            [ class "o-drawer u-highest o-drawer--left o-drawer--visible" ]
-            [ text "Left menu" ]
+    { title = "Anvi'o Genome Viewer"
+    , body =
+        [ div [ class "o-grid--full" ]
+            [ div [ class "o-grid__cell" ]
+                [ plotData model ]
+            , node "aside"
+                [ class "o-drawer u-highest o-drawer--left o-drawer--visible" ]
+                -- DEBUG
+                [ text (String.fromInt (List.length model.contigs)) ]
+            ]
         ]
+    }
 
 
 
