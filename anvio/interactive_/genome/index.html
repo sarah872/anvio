@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>anvi'o Genome Viewer</title>
     <link rel="stylesheet" href="/static/css/blaze.css">
-    <script src="/static/js/sql-wasm.js"></script>
+    <script src="/static/js/worker.sql-wasm.js"></script>
   </head>
   <body>
     <div id="elm"></div>
@@ -17,12 +17,17 @@
           window.meta = meta;
           window.data = {};
 
-          Object.entries(window.meta.data).forEach(async function([dataId, details]) {
-            console.log(`Fetching ${dataId}`);
-            const content = await fetch(`data/${dataId}`);
-            const arrayBuffer = await content.arrayBuffer();
-            console.log(arrayBuffer);
-          });
+          initSqlJs({ locateFile: filename => `/static/js/${filename}` })
+            .then((SQL) => {
+              Object.entries(window.meta.data).forEach(async function([dataId, details]) {
+                console.log(`Fetching ${dataId}`);
+                const content = await fetch(`data/${dataId}`);
+                const arrayBuffer = await content.arrayBuffer();
+                var uInt8Array = new Uint8Array(arrayBuffer);
+                var db = new SQL.Database(uInt8Array);
+                console.log(db);
+              });
+            });
 
           var app = Elm.Main.init({
               node: document.getElementById('elm')
