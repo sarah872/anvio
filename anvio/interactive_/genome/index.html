@@ -14,24 +14,32 @@
           const metaResponse = await fetch('meta');
           const meta = await metaResponse.json();
 
-          window.meta = meta;
-          window.data = {};
-
           initSqlJs({ locateFile: filename => `/static/js/${filename}` })
             .then((SQL) => {
-              Object.entries(window.meta.data).forEach(async function([dataId, details]) {
+              Object.entries(meta.data).forEach(async function([dataId, details]) {
                 console.log(`Fetching ${dataId}`);
                 const content = await fetch(`data/${dataId}`);
                 const arrayBuffer = await content.arrayBuffer();
-                var uInt8Array = new Uint8Array(arrayBuffer);
-                var db = new SQL.Database(uInt8Array);
-                console.log(db);
+                let uInt8Array = new Uint8Array(arrayBuffer);
+                let db = new SQL.Database(uInt8Array);
+
+                if (dataId == 'genome_storage') {
+                    let { columns, values } = db.exec(`select * from contigs_basic_info;`)[0];
+                    var app = Elm.Main.init({
+                        node: document.getElementById('elm'),
+                        flags: {
+                          'contigs': values.map((row) => {
+                            return row.reduce((obj, v, i) => {
+                              let col = columns[i];
+                              obj[(col == 'contig') ? 'name' : col] = v;
+                              return obj;
+                            }, {});
+                          })
+                        }
+                    });
+                }
               });
             });
-
-          var app = Elm.Main.init({
-              node: document.getElementById('elm')
-          });
       }
 
       initApp();

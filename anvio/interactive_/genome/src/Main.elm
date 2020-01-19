@@ -45,9 +45,11 @@ main =
 -- INIT
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( defaultModel
+init : Flags -> ( Model, Cmd Msg )
+init flags =
+    ( { defaultModel
+        | contigs = flags.contigs
+      }
     , Cmd.none
     )
 
