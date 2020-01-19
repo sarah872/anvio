@@ -14,37 +14,32 @@ plotData model =
         [ width "100%"
         , height "100%"
         ]
-        []
+        (genContigBackgrounds
+            model
+        )
+
+
+genContigBackgrounds : Model -> List (Svg msg)
+genContigBackgrounds model =
+    List.map
+        (\contig ->
+            rect
+                [ x "0"
+                , y
+                    (String.fromInt
+                        (1 * (model.contigBarHeight + model.gap))
+                    )
+                , width (String.fromInt contig.length)
+                , height (String.fromInt model.contigBarHeight)
+                , fill "lightgray"
+                , strokeWidth "0"
+                ]
+                []
+        )
+        model.contigs
 
 
 
--- Svg.map
--- (\contig ->
---     Keyed.node "g"
---         []
---         ( contig.name, [ genContigBackgrounds model contig ] )
--- )
--- model.contigs
-
-
-genContigBackgrounds : Model -> Contig -> Svg msg
-genContigBackgrounds model contig =
-    rect
-        [ x "0"
-        , y
-            (String.fromInt
-                (1 * (model.contigBarHeight + model.gap))
-            )
-        , width (String.fromInt contig.length)
-        , height (String.fromInt model.contigBarHeight)
-        , fill "lightgray"
-        , strokeWidth "0"
-        ]
-        []
-
-
-
---
 -- genGeneArrows : Model -> Contig -> Int -> Svg msg
 -- genGeneArrows model contig index =
 --     List.map
