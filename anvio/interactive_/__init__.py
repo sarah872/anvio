@@ -30,7 +30,7 @@ Dirname = lambda x: os.path.dirname(x)
 
 
 class ElmApp():
-    def __init__(self, project_file = None, app_root = None, main = None, dist = None):
+    def __init__(self, project_file = None, app_root = None, main = None):
         utils.is_program_exists('elm')
 
         if not app_root:
@@ -38,7 +38,6 @@ class ElmApp():
 
         self.debug = True if anvio.__version__.endswith('-master') else False
         self.main = main or 'src/Main.elm'
-        self.dist = dist or ('static/js/%sApp.js' % (os.path.basename(app_root)))
 
         self.web_root = app_root
 
@@ -51,21 +50,21 @@ class ElmApp():
         self.project_file_path = project_file
         self.project_flags = self.load_project_flags(AbsolutePath(project_file))
 
+
     @cherrypy.expose
     def index(self):
         try:
             subprocess.check_output(['elm',
                                      'make', self.main,
-                                     '--output', self.dist,
+                                     '--output', Join(self.web_root, 'dist.js'),
                                      '--report', 'json'],
                                     cwd = self.web_root,
                                     stderr = subprocess.STDOUT,
                                     universal_newlines = True)
 
             now = datetime.now()
-            run.info_single("%s (%s, %s)." % ("Built successfull",
-                                            now.strftime("%d/%m/%Y %H:%M:%S"),
-                                            self.dist))
+            run.info_single("%s (%s)." % ("Built successfull",
+                                            now.strftime("%d/%m/%Y %H:%M:%S")))
 
         except subprocess.CalledProcessError as exc:
             body = "<html><head>" \
@@ -76,8 +75,9 @@ class ElmApp():
                    "</script></body></html>"
             return body
 
-        with open(Join(self.web_root, 'index.html'), 'r') as f:
-            return f.read().replace('{{dist}}', self.dist)
+        with open(Join(self.web_root, 'dist.js'), 'r') as js:
+            with open(Join(self.web_root, 'index.html'), 'r') as f:
+                return f.read().replace('{{dist}}', js.read())
 
 
     @cherrypy.expose

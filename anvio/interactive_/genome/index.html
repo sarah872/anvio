@@ -5,11 +5,11 @@
     <title>anvi'o Genome Viewer</title>
     <link rel="stylesheet" href="static/css/blaze.css">
     <script src="static/js/sql-wasm.js"></script>
-    <script src="{{dist}}"></script>
   </head>
   <body>
     <div id="elm"></div>
     <script>
+      {{dist}}
       async function initApp() {
           const metaResponse = await fetch('meta');
           const meta = await metaResponse.json();
