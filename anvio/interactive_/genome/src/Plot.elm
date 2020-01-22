@@ -1,10 +1,12 @@
 module Plot exposing (plotData)
 
+-- import Svg.Keyed as Keyed exposing (..)
+-- import Svg.Lazy as Lazy exposing (..)
+
 import Html exposing (Html)
 import Model exposing (Model)
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
-import Svg.Keyed as Keyed exposing (..)
 import Types exposing (Contig, Gene)
 
 
@@ -35,76 +37,32 @@ genContigBackgrounds model =
                 , fill "lightgray"
                 , strokeWidth "0"
                 ]
-                []
+                (genGeneArrows model contig index)
         )
         model.contigs
 
 
+genGeneArrows : Model -> Contig -> Int -> List (Svg msg)
+genGeneArrows model contig index =
+    let
+        start =
+            String.fromInt (index * (model.contigBarHeight + model.gap))
+    in
+    List.map
+        (\gene ->
+            polyline [ points (start ++ ",10 10,10 20,20 30,30") ]
+                []
+        )
+        (filterGenes model.genes contig)
 
--- genGeneArrows : Model -> Contig -> Int -> Svg msg
--- genGeneArrows model contig index =
---     List.map
---         (\_ ->
---             polyline []
---                 []
---         )
---         (List.filter
---             (\_ ->
---                 False
---             )
---             model.genes
---         )
--- genContigBackground : Contig -> Svg msg
--- genContigBackground contig index model =
---
---
--- genGenePath : Gene -> Path
--- genGenePath gene =
---     let
---         genePath =
---             newPath
---                 [ { x = toFloat gene.start, y = 0 }
---                 , { x = toFloat gene.start, y = 20 }
---                 , { x = toFloat gene.stop, y = 20 }
---                 , { x = toFloat gene.stop, y = 0 }
---                 ]
---     in
---     case gene.direction of
---         Forward ->
---             genePath
---
---         Reverse ->
---             flipPathX genePath
--- flipPathX : Path -> Path
--- flipPathX path =
---     let
---         allX =
---             List.map .x path.points
---
---         center =
---             (List.maximum .x + List.minimum .x) / 2
---
---         flipped =
---             List.map (\x -> x) path.points
---     in
---     { path | points = flipped }
---
--- view : Model -> Html Msg
--- view model =
---     let
---         gene =
---             { start = 100
---             , end = 200
---             , direction = Forward
---             }
---     in
---     div []
---         [ svg
---             [ width "400"
---             , height "200"
---             ]
---             repeat
---             3
---             [ Svg.path [ d (genGenePath gene) ] []
---             ]
---         ]
+
+filterGenes : List Gene -> Contig -> List Gene
+filterGenes allGenes contig =
+    List.filter
+        (\gene ->
+            gene.contig
+                == contig.name
+                && gene.genome_name
+                == contig.genome_name
+        )
+        allGenes
