@@ -12,8 +12,12 @@ type alias Contig =
 
 type alias Gene =
     { gene_callers_id : Int
+    , contig : String
     , start : Int
     , stop : Int
-    , partial : Int
     , direction : String
+    , partial : Int
+    , source : String
+    , version : String
+    , genome_name : String
     }

@@ -6,7 +6,7 @@ import Html.Attributes exposing (..)
 import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
-import Types exposing (Contig)
+import Types exposing (Contig, Gene)
 
 
 
@@ -14,7 +14,10 @@ import Types exposing (Contig)
 
 
 type alias Flags =
-    { contigs : List Contig
+    { data :
+        { contigs : List Contig
+        , genes : List Gene
+        }
     }
 
 
@@ -48,7 +51,8 @@ main =
 init : Flags -> ( Model, Cmd Msg )
 init flags =
     ( { defaultModel
-        | contigs = flags.contigs
+        | contigs = flags.data.contigs
+        , genes = flags.data.genes
       }
     , Cmd.none
     )

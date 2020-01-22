@@ -2,11 +2,12 @@ module Model exposing (Model, defaultModel)
 
 import Http exposing (..)
 import Set exposing (..)
-import Types exposing (Contig)
+import Types exposing (Contig, Gene)
 
 
 type alias Model =
     { contigs : List Contig
+    , genes : List Gene
     , genomes : Set String
     , error : Maybe String
     , scaleX : Float
@@ -18,6 +19,7 @@ type alias Model =
 
 defaultModel =
     { contigs = []
+    , genes = []
     , genomes = Set.empty
     , error = Nothing
     , scaleX = 10000.0
