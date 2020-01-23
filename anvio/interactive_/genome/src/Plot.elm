@@ -26,34 +26,53 @@ genContigBackgrounds : Model -> List (Svg msg)
 genContigBackgrounds model =
     List.indexedMap
         (\index contig ->
-            rect
-                [ x "0"
-                , y
-                    (String.fromInt
-                        (index * (model.contigBarHeight + model.gap))
-                    )
-                , width (String.fromInt contig.length)
-                , height (String.fromInt model.contigBarHeight)
-                , fill "lightgray"
-                , strokeWidth "0"
-                ]
-                (genGeneArrows model contig index)
+            let
+                startY =
+                    toFloat index * toFloat (model.contigBarHeight + model.gap)
+            in
+            g []
+                (genGeneArrows model contig startY)
+         -- rect
+         --     [ x "0"
+         --     , y (toStr startY)
+         --     , width (String.fromInt contig.length)
+         --     , height (String.fromInt model.contigBarHeight)
+         --     , fill "lightgray"
+         --     , strokeWidth "0"
+         --     ]
+         --     []
         )
         model.contigs
 
 
-genGeneArrows : Model -> Contig -> Int -> List (Svg msg)
-genGeneArrows model contig index =
-    let
-        start =
-            String.fromInt (index * (model.contigBarHeight + model.gap))
-    in
+toStr : Float -> String
+toStr a =
+    String.fromFloat a
+
+
+genGeneArrows : Model -> Contig -> Float -> List (Svg msg)
+genGeneArrows model contig startY =
     List.map
         (\gene ->
-            polyline [ points (start ++ ",10 10,10 20,20 30,30") ]
+            Svg.path
+                [ d
+                    (String.join
+                        " "
+                        [ "M" ++ toStr gene.start ++ "," ++ toStr startY
+                        , "L" ++ toStr gene.stop ++ "," ++ toStr startY
+                        , "L" ++ toStr gene.stop ++ "," ++ toStr (startY + toFloat model.contigBarHeight)
+                        , "L" ++ toStr gene.start ++ "," ++ toStr (startY + toFloat model.contigBarHeight)
+                        , "Z"
+                        ]
+                    )
+                , strokeWidth "1"
+                , stroke "#00000"
+                ]
                 []
         )
-        (filterGenes model.genes contig)
+        (List.reverse
+            (filterGenes model.genes contig)
+        )
 
 
 filterGenes : List Gene -> Contig -> List Gene
