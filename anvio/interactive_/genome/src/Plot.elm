@@ -52,16 +52,23 @@ toStr a =
 
 genGeneArrows : Model -> Contig -> Float -> List (Svg msg)
 genGeneArrows model contig startY =
+    let
+        sX =
+            \num -> toStr (num / model.scaleX)
+
+        sY =
+            \num -> toStr num
+    in
     List.map
         (\gene ->
             Svg.path
                 [ d
                     (String.join
                         " "
-                        [ "M" ++ toStr gene.start ++ "," ++ toStr startY
-                        , "L" ++ toStr gene.stop ++ "," ++ toStr startY
-                        , "L" ++ toStr gene.stop ++ "," ++ toStr (startY + toFloat model.contigBarHeight)
-                        , "L" ++ toStr gene.start ++ "," ++ toStr (startY + toFloat model.contigBarHeight)
+                        [ "M" ++ sX gene.start ++ "," ++ sY startY
+                        , "L" ++ sX gene.stop ++ "," ++ sY startY
+                        , "L" ++ sX gene.stop ++ "," ++ sY (startY + toFloat model.contigBarHeight)
+                        , "L" ++ sX gene.start ++ "," ++ sY (startY + toFloat model.contigBarHeight)
                         , "Z"
                         ]
                     )
