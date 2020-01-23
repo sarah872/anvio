@@ -17,32 +17,28 @@ plotData model =
         , height "100%"
         , Svg.Attributes.style "position: fixed"
         ]
-        (genContigBackgrounds
-            model
+        (List.indexedMap
+            (\index contig ->
+                let
+                    startY =
+                        toFloat index
+                            * toFloat (model.contigBarHeight + model.gap)
+                in
+                g []
+                    [ rect
+                        [ x "0"
+                        , y (toStr startY)
+                        , width (String.fromInt contig.length)
+                        , height (String.fromInt model.contigBarHeight)
+                        , fill "lightgray"
+                        , strokeWidth "0"
+                        ]
+                        []
+                    , g [] (genGeneArrows model contig startY)
+                    ]
+            )
+            model.contigs
         )
-
-
-genContigBackgrounds : Model -> List (Svg msg)
-genContigBackgrounds model =
-    List.indexedMap
-        (\index contig ->
-            let
-                startY =
-                    toFloat index * toFloat (model.contigBarHeight + model.gap)
-            in
-            g []
-                (genGeneArrows model contig startY)
-         -- rect
-         --     [ x "0"
-         --     , y (toStr startY)
-         --     , width (String.fromInt contig.length)
-         --     , height (String.fromInt model.contigBarHeight)
-         --     , fill "lightgray"
-         --     , strokeWidth "0"
-         --     ]
-         --     []
-        )
-        model.contigs
 
 
 toStr : Float -> String
