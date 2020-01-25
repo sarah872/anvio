@@ -1,21 +1,20 @@
 module Plot exposing (plotData)
 
--- import Svg.Keyed as Keyed exposing (..)
--- import Svg.Lazy as Lazy exposing (..)
-
 import Html exposing (Html)
 import Model exposing (Model)
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
+import Svg.Keyed as Keyed exposing (..)
+import Svg.Lazy as Lazy exposing (..)
 import Types exposing (Contig, Gene)
 
 
-plotData : Model -> Svg msg
+plotData : Model -> Html msg
 plotData model =
     svg
         [ width "100%"
         , height "100%"
-        , Svg.Attributes.style "position: fixed"
+        , Svg.Attributes.style "position: relative"
         ]
         (List.indexedMap
             (\index contig ->
@@ -28,7 +27,7 @@ plotData model =
                     [ rect
                         [ x "0"
                         , y (toStr startY)
-                        , width (String.fromInt contig.length)
+                        , width (toStr (toFloat contig.length / model.scaleX))
                         , height (String.fromInt model.contigBarHeight)
                         , fill "lightgray"
                         , strokeWidth "0"
@@ -57,7 +56,7 @@ genGeneArrows model contig startY =
     in
     List.map
         (\gene ->
-            Svg.path
+            Keyed.node "path"
                 [ d
                     (String.join
                         " "

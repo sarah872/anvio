@@ -1,8 +1,13 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (..)
-import Html.Attributes exposing (..)
+import Element exposing (..)
+import Element.Background as Background
+import Element.Border exposing (shadow)
+import Element.Events exposing (..)
+import Element.Font as Font
+import Element.Input as Input
+import Html exposing (Html)
 import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
@@ -66,21 +71,40 @@ view : Model -> Browser.Document msg
 view model =
     { title = "Anvi'o Genome Viewer"
     , body =
-        [ div [ class "o-grid--full" ]
-            [ div [ class "o-grid__cell" ]
-                [ plotData model ]
-            , node "aside"
-                [ class "o-drawer u-highest o-drawer--left o-drawer--visible" ]
-                -- DEBUG
-                [ text (String.fromInt (List.length model.contigs)) ]
-            ]
+        [ layout [] <|
+            column [ height fill, width fill ]
+                [ row
+                    [ height <| px 80
+                    , width fill
+                    , Background.color <| rgb255 89 92 102
+                    , Font.color <| rgb255 255 255 255
+                    ]
+                    [ text "channels" ]
+                , row [ width fill, height fill ]
+                    [ el
+                        [ width fill
+                        , height fill
+                        , Background.color <| rgb255 235 241 245
+                        , inFront <|
+                            el
+                                [ alignRight
+                                , width <| px 300
+                                , height fill
+                                , alpha 0.98
+                                , Background.color <| rgb255 62 65 75
+                                ]
+                            <|
+                                text "placebolder"
+                        ]
+                      <|
+                        html (plotData model)
+                    ]
+                ]
         ]
     }
 
 
 
--- plotData
--- model
 -- UPDATE
 
 
