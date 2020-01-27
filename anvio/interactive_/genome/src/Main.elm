@@ -4,10 +4,10 @@ import Browser
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border exposing (shadow)
-import Element.Events exposing (..)
+import Element.Events exposing (onClick)
 import Element.Font as Font
-import Element.Input as Input
-import Html exposing (Html)
+import Html exposing (Html, button, h5, i)
+import Html.Attributes exposing (class, style)
 import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
@@ -32,7 +32,7 @@ type alias Flags =
 
 type Msg
     = NoOp
-    | UpdateParam String String
+    | TogglePanel String
 
 
 
@@ -41,7 +41,7 @@ type Msg
 
 main : Program Flags Model Msg
 main =
-    Browser.document
+    Browser.element
         { init = init
         , view = view
         , update = update
@@ -67,41 +67,49 @@ init flags =
 -- VIEW
 
 
-view : Model -> Browser.Document msg
+view : Model -> Html Msg
 view model =
-    { title = "Anvi'o Genome Viewer"
-    , body =
-        [ layout [] <|
-            column [ height fill, width fill ]
-                [ row
-                    [ height <| px 80
-                    , width fill
-                    , Background.color <| rgb255 89 92 102
-                    , Font.color <| rgb255 255 255 255
-                    ]
-                    [ text "channels" ]
-                , row [ width fill, height fill ]
-                    [ el
-                        [ width fill
-                        , height fill
-                        , Background.color <| rgb255 235 241 245
-                        , inFront <|
-                            el
-                                [ alignRight
-                                , width <| px 300
-                                , height fill
-                                , alpha 0.98
-                                , Background.color <| rgb255 62 65 75
-                                ]
-                            <|
-                                text "placebolder"
-                        ]
-                      <|
-                        html (plotData model)
-                    ]
-                ]
+    layout [] <| navigationPanel model
+
+
+navigationPanel : Model -> Element Msg
+navigationPanel model =
+    row
+        [ height <| px 80
+        , width fill
+        , Background.color <| rgb255 235 241 245
         ]
-    }
+        [ row
+            [ padding 10
+            , spacing 7
+            , centerX
+            ]
+            [ el [ onClick <| TogglePanel "settings" ] <| navigationButton "Settings"
+            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "Settings"
+            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "Settings"
+            ]
+        ]
+
+
+navigationButton : String -> Element msg
+navigationButton title =
+    el [] <|
+        html <|
+            i [ class "material-icons" ] [ Html.text title ]
+
+
+settingsPanel : Model -> Element msg
+settingsPanel model =
+    el
+        [ htmlAttribute <| style "display" "visible"
+        , alignRight
+        , width <| px 300
+        , height fill
+        , alpha 0.98
+        , Background.color <| rgb255 235 241 245
+        ]
+    <|
+        text "placebolder"
 
 
 
@@ -111,5 +119,12 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        TogglePanel panel ->
+            ( { model
+                | leftPanel = Just panel
+              }
+            , Cmd.none
+            )
+
         _ ->
             ( model, Cmd.none )
