@@ -106,28 +106,39 @@ navigationPanel model =
         ]
         [ row
             [ padding 10
-            , spacing 7
+            , spacing 10
             , centerX
             ]
-            [ el [ onClick <| TogglePanel "settings" ] <| navigationButton "settings"
-            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "settings"
-            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "settings"
+            [ el [ onClick <| TogglePanel "settings" ] <| navigationButton "settings" "Settings"
+            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "clear_all" "Alignment"
+            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "color_lens" "Colors"
+            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "search" "Search"
             ]
         ]
 
 
-navigationButton : String -> Element msg
-navigationButton name =
+navigationButton : String -> String -> Element msg
+navigationButton name title =
     column [ pointer ]
-        [ el [] <|
+        [ el
+            [ centerX
+            ]
+          <|
             html <|
                 i
                     [ style "font-size" "40px"
                     , class "material-icons"
                     ]
                     [ Html.text name ]
-        , el [] <|
-            Element.text name
+        , el
+            [ centerX
+            , padding 6
+            , Font.size 12
+            , htmlAttribute <|
+                style "text-transform" "capitalize"
+            ]
+          <|
+            Element.text title
         ]
 
 
