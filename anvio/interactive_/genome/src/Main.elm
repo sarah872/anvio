@@ -6,7 +6,7 @@ import Element.Background as Background
 import Element.Border exposing (shadow)
 import Element.Events exposing (onClick)
 import Element.Font as Font
-import Html exposing (Html, button, h5, i)
+import Html exposing (Html, button, i, span)
 import Html.Attributes exposing (class, style)
 import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
@@ -105,9 +105,17 @@ navigationPanel model =
 
 navigationButton : String -> Element msg
 navigationButton name =
-    el [] <|
-        html <|
-            i [ class "material-icons" ] [ Html.text name ]
+    column []
+        [ el [] <|
+            html <|
+                i
+                    [ style "font-size" "40px"
+                    , class "material-icons"
+                    ]
+                    [ Html.text name ]
+        , el [] <|
+            Element.text name
+        ]
 
 
 settingsPanel : Model -> Element msg
