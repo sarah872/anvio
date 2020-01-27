@@ -1,6 +1,8 @@
 module Main exposing (..)
 
+import Animation exposing (..)
 import Browser
+import Browser.Events exposing (onAnimationFrameDelta, onResize)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border exposing (shadow)
@@ -11,6 +13,7 @@ import Html.Attributes exposing (class, style)
 import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
+import Time
 import Types exposing (Contig, Gene)
 
 
@@ -33,10 +36,20 @@ type alias Flags =
 type Msg
     = NoOp
     | TogglePanel String
+    | Tick Float
+    | Resize Int Int
 
 
 
 -- MAIN
+
+
+subs : Sub Msg
+subs =
+    Sub.batch
+        [ onResize Resize
+        , onAnimationFrameDelta Tick
+        ]
 
 
 main : Program Flags Model Msg
@@ -45,7 +58,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = always subs
         }
 
 
@@ -89,7 +102,7 @@ navigationPanel model =
     row
         [ height <| px 80
         , width fill
-        , Background.color <| rgb255 235 241 245
+        , Background.color <| rgb255 240 240 240
         ]
         [ row
             [ padding 10
@@ -105,7 +118,7 @@ navigationPanel model =
 
 navigationButton : String -> Element msg
 navigationButton name =
-    column []
+    column [ pointer ]
         [ el [] <|
             html <|
                 i
@@ -116,6 +129,14 @@ navigationButton name =
         , el [] <|
             Element.text name
         ]
+
+
+slideIn : Animation
+slideIn =
+    animation -300
+        |> from -300
+        |> to 0
+        |> duration 10000
 
 
 settingsPanel : Model -> Element msg
@@ -130,12 +151,18 @@ settingsPanel model =
                 style "display" "none"
         , alignRight
         , width <| px 300
+        , htmlAttribute <|
+            style "right" <|
+                String.fromFloat <|
+                    animate (model.clock - model.lastClickTime) slideIn
         , height fill
         , alpha 0.98
         , Background.color <| rgb255 235 241 245
         ]
     <|
-        text "placebolder"
+        text <|
+            String.fromFloat <|
+                ((model.clock - model.lastClickTime) / 1000)
 
 
 
@@ -145,9 +172,13 @@ settingsPanel model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        Tick dt ->
+            ( { model | clock = model.clock + dt }, Cmd.none )
+
         TogglePanel panel ->
             ( { model
-                | leftPanel =
+                | lastClickTime = model.clock
+                , leftPanel =
                     if panel == model.leftPanel then
                         {- Hide the panel -}
                         ""
