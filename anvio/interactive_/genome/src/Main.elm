@@ -69,7 +69,19 @@ init flags =
 
 view : Model -> Html Msg
 view model =
-    layout [] <| navigationPanel model
+    layout [] <|
+        column [ height fill, width fill ]
+            [ navigationPanel model
+            , row [ width fill, height fill ]
+                [ el
+                    [ width fill
+                    , height fill
+                    , inFront <| settingsPanel model
+                    ]
+                  <|
+                    html (plotData model)
+                ]
+            ]
 
 
 navigationPanel : Model -> Element Msg
@@ -84,18 +96,18 @@ navigationPanel model =
             , spacing 7
             , centerX
             ]
-            [ el [ onClick <| TogglePanel "settings" ] <| navigationButton "Settings"
-            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "Settings"
-            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "Settings"
+            [ el [ onClick <| TogglePanel "settings" ] <| navigationButton "settings"
+            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "settings"
+            , el [ onClick <| TogglePanel "settings" ] <| navigationButton "settings"
             ]
         ]
 
 
 navigationButton : String -> Element msg
-navigationButton title =
+navigationButton name =
     el [] <|
         html <|
-            i [ class "material-icons" ] [ Html.text title ]
+            i [ class "material-icons" ] [ Html.text name ]
 
 
 settingsPanel : Model -> Element msg
