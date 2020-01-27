@@ -121,7 +121,13 @@ navigationButton name =
 settingsPanel : Model -> Element msg
 settingsPanel model =
     el
-        [ htmlAttribute <| style "display" "visible"
+        [ if model.leftPanel == "settings" then
+            htmlAttribute <|
+                style "display" "block"
+
+          else
+            htmlAttribute <|
+                style "display" "none"
         , alignRight
         , width <| px 300
         , height fill
@@ -141,7 +147,13 @@ update msg model =
     case msg of
         TogglePanel panel ->
             ( { model
-                | leftPanel = Just panel
+                | leftPanel =
+                    if panel == model.leftPanel then
+                        {- Hide the panel -}
+                        ""
+
+                    else
+                        panel
               }
             , Cmd.none
             )

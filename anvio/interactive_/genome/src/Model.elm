@@ -14,14 +14,14 @@ type alias Model =
     , screenCenterAsBasePos : Float
     , contigBarHeight : Int
     , gap : Int
-    , leftPanel : Maybe String
+    , leftPanel : String
     }
 
 
 defaultModel =
     { contigs = []
     , genes = []
-    , leftPanel = Nothing
+    , leftPanel = ""
     , genomes = Set.empty
     , error = Nothing
     , scaleX = 2000.0
