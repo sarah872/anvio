@@ -1,8 +1,8 @@
 module Main exposing (..)
 
-import Animation exposing (..)
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta, onResize)
+import Ease
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border exposing (shadow)
@@ -142,38 +142,42 @@ navigationButton name title =
         ]
 
 
-slideIn : Animation
-slideIn =
-    animation -300
-        |> from -300
-        |> to 0
-        |> duration 10000
-
-
 settingsPanel : Model -> Element msg
 settingsPanel model =
+    let
+        widthPx =
+            300
+
+        timeSincePanelTriggered =
+            model.globalClock - model.panelTriggerClock
+    in
     el
-        [ if model.leftPanel == "settings" then
+        [ htmlAttribute <|
+            style "right" <|
+                String.fromFloat
+                    (min 0
+                        ((-1 * widthPx)
+                            + (widthPx
+                                * Ease.inQuad (timeSincePanelTriggered * 4)
+                              )
+                        )
+                    )
+                    ++ "px"
+        , if model.leftPanel == "settings" then
             htmlAttribute <|
                 style "display" "block"
 
           else
             htmlAttribute <|
                 style "display" "none"
-        , alignRight
-        , width <| px 300
-        , htmlAttribute <|
-            style "right" <|
-                String.fromFloat <|
-                    animate (model.clock - model.lastClickTime) slideIn
         , height fill
         , alpha 0.98
+        , width <| px widthPx
+        , alignRight
         , Background.color <| rgb255 235 241 245
         ]
     <|
-        text <|
-            String.fromFloat <|
-                ((model.clock - model.lastClickTime) / 1000)
+        text "Hai"
 
 
 
@@ -184,11 +188,11 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Tick dt ->
-            ( { model | clock = model.clock + dt }, Cmd.none )
+            ( { model | globalClock = model.globalClock + (dt / 1000) }, Cmd.none )
 
         TogglePanel panel ->
             ( { model
-                | lastClickTime = model.clock
+                | panelTriggerClock = model.globalClock
                 , leftPanel =
                     if panel == model.leftPanel then
                         {- Hide the panel -}

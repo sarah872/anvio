@@ -14,8 +14,8 @@
             "elm/random": "1.0.0",
             "elm/svg": "1.0.1",
             "elm/time": "1.0.0",
-            "mdgriffith/elm-ui": "1.1.5",
-            "mgold/elm-animation": "2.0.0"
+            "elm-community/easing-functions": "2.0.0",
+            "mdgriffith/elm-ui": "1.1.5"
         },
         "indirect": {
             "elm/bytes": "1.0.8",
