@@ -1,4 +1,4 @@
-module Main exposing (..)
+module Main exposing (main)
 
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta, onResize)
@@ -8,8 +8,10 @@ import Element.Background as Background
 import Element.Border exposing (shadow)
 import Element.Events exposing (onClick)
 import Element.Font as Font
+import Element.Lazy exposing (lazy)
 import Html exposing (Html, button, i, span)
 import Html.Attributes exposing (class, style)
+import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
 import Time
@@ -37,40 +39,6 @@ type Msg
     | TogglePanel String
     | Tick Float
     | Resize Int Int
-
-
-
--- MAIN
-
-
-type alias Model =
-    { contigs : List Contig
-    , genes : List Gene
-    , genomes : Set String
-    , error : Maybe String
-    , scaleX : Float
-    , screenCenterAsBasePos : Float
-    , contigBarHeight : Int
-    , gap : Int
-    , leftPanel : String
-    , globalClock : Float
-    , panelTriggerClock : Float
-    }
-
-
-defaultModel =
-    { contigs = []
-    , genes = []
-    , leftPanel = ""
-    , genomes = Set.empty
-    , error = Nothing
-    , scaleX = 2000.0
-    , screenCenterAsBasePos = 0.0
-    , contigBarHeight = 20
-    , gap = 5
-    , globalClock = 0
-    , panelTriggerClock = 0
-    }
 
 
 
@@ -115,9 +83,7 @@ view model =
                     , inFront <| settingsPanel model
                     ]
                   <|
-                    text "Hai"
-
-                -- html (plotData model)
+                    html (plotData model)
                 ]
             ]
 
@@ -183,7 +149,8 @@ settingsPanel model =
                     (min 0
                         ((-1 * widthPx)
                             + (widthPx
-                                * Ease.inQuad (timeSincePanelTriggered * 4)
+                                * 2
+                                * Ease.inQuad (timeSincePanelTriggered * 2)
                               )
                         )
                     )

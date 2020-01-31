@@ -5,7 +5,7 @@ import Model exposing (Model)
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
 import Svg.Keyed as Keyed exposing (..)
-import Svg.Lazy as Lazy exposing (..)
+import Svg.Lazy exposing (lazy3)
 import Types exposing (Contig, Gene)
 
 
@@ -20,7 +20,8 @@ plotData model =
             (\index contig ->
                 let
                     startY =
-                        toFloat index
+                        toFloat
+                            index
                             * toFloat (model.contigBarHeight + model.gap)
                 in
                 g []
@@ -33,7 +34,19 @@ plotData model =
                         , strokeWidth "0"
                         ]
                         []
-                    , g [] (genGeneArrows model contig startY)
+                    , g []
+                        (genGeneArrows
+                            model
+                            contig
+                            startY
+                        )
+
+                    --
+                    -- [ lazy3 genGeneArrows
+                    --     model
+                    --     contig
+                    --     startY
+                    -- ]
                     ]
             )
             model.contigs
@@ -49,10 +62,11 @@ genGeneArrows : Model -> Contig -> Float -> List (Svg msg)
 genGeneArrows model contig startY =
     let
         sX =
-            \num -> toStr (num / model.scaleX)
+            \n -> toStr (n / model.scaleX)
 
         sY =
-            \num -> toStr num
+            {- TO DO: There is no scaleY yet -}
+            \n -> toStr (n / model.scaleX)
     in
     List.map
         (\gene ->
@@ -72,9 +86,7 @@ genGeneArrows model contig startY =
                 ]
                 []
         )
-        (List.reverse
-            (filterGenes model.genes contig)
-        )
+        (filterGenes model.genes contig)
 
 
 filterGenes : List Gene -> Contig -> List Gene
