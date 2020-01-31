@@ -10,7 +10,6 @@ import Element.Events exposing (onClick)
 import Element.Font as Font
 import Html exposing (Html, button, i, span)
 import Html.Attributes exposing (class, style)
-import Model exposing (Model, defaultModel)
 import Plot exposing (plotData)
 import Set exposing (..)
 import Time
@@ -44,22 +43,34 @@ type Msg
 -- MAIN
 
 
-subs : Sub Msg
-subs =
-    Sub.batch
-        [ onResize Resize
-        , onAnimationFrameDelta Tick
-        ]
+type alias Model =
+    { contigs : List Contig
+    , genes : List Gene
+    , genomes : Set String
+    , error : Maybe String
+    , scaleX : Float
+    , screenCenterAsBasePos : Float
+    , contigBarHeight : Int
+    , gap : Int
+    , leftPanel : String
+    , globalClock : Float
+    , panelTriggerClock : Float
+    }
 
 
-main : Program Flags Model Msg
-main =
-    Browser.element
-        { init = init
-        , view = view
-        , update = update
-        , subscriptions = always subs
-        }
+defaultModel =
+    { contigs = []
+    , genes = []
+    , leftPanel = ""
+    , genomes = Set.empty
+    , error = Nothing
+    , scaleX = 2000.0
+    , screenCenterAsBasePos = 0.0
+    , contigBarHeight = 20
+    , gap = 5
+    , globalClock = 0
+    , panelTriggerClock = 0
+    }
 
 
 
@@ -74,6 +85,18 @@ init flags =
       }
     , Cmd.none
     )
+
+
+
+-- SUBS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch
+        [ onResize Resize
+        , onAnimationFrameDelta Tick
+        ]
 
 
 
@@ -92,7 +115,9 @@ view model =
                     , inFront <| settingsPanel model
                     ]
                   <|
-                    html (plotData model)
+                    text "Hai"
+
+                -- html (plotData model)
                 ]
             ]
 
@@ -206,3 +231,17 @@ update msg model =
 
         _ ->
             ( model, Cmd.none )
+
+
+
+-- MAIN
+
+
+main : Program Flags Model Msg
+main =
+    Browser.element
+        { init = init
+        , view = view
+        , update = update
+        , subscriptions = subscriptions
+        }

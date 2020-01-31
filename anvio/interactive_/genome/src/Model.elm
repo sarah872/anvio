@@ -1,7 +1,5 @@
 module Model exposing (Model, defaultModel)
 
-import Animation exposing (Clock)
-import Http exposing (..)
 import Set exposing (..)
 import Types exposing (Contig, Gene)
 
@@ -16,8 +14,6 @@ type alias Model =
     , contigBarHeight : Int
     , gap : Int
     , leftPanel : String
-    , clock : Clock
-    , lastClickTime : Clock
     }
 
 
@@ -31,6 +27,4 @@ defaultModel =
     , screenCenterAsBasePos = 0.0
     , contigBarHeight = 20
     , gap = 5
-    , clock = 0
-    , lastClickTime = 0
     }
