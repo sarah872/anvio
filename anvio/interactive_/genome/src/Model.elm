@@ -14,6 +14,8 @@ type alias Model =
     , contigBarHeight : Int
     , gap : Int
     , leftPanel : String
+    , globalClock : Float
+    , panelTriggerClock : Float
     }
 
 
@@ -23,8 +25,10 @@ defaultModel =
     , leftPanel = ""
     , genomes = Set.empty
     , error = Nothing
-    , scaleX = 2000.0
+    , scaleX = 100.0
     , screenCenterAsBasePos = 0.0
     , contigBarHeight = 20
     , gap = 5
+    , globalClock = 0
+    , panelTriggerClock = 0
     }
