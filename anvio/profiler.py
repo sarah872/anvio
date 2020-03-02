@@ -627,7 +627,8 @@ class BAMProfiler(dbops.ContigsSuperclass):
 
                     gene_call = self.genes_in_contigs_dict[gene_callers_id]
                     contig_name = gene_call['contig']
-                    contig.codon_frequencies_dict[gene_callers_id] = codon_frequencies.process_gene_call(bam_file, gene_call, self.contig_sequences[contig_name]['sequence'], codons_to_profile)
+                    if self.profile_SCVs:
+                        contig.codon_frequencies_dict[gene_callers_id] = codon_frequencies.process_gene_call(bam_file, gene_call, self.contig_sequences[contig_name]['sequence'], codons_to_profile)
 
             output_queue.put(contig)
 
@@ -673,7 +674,6 @@ class BAMProfiler(dbops.ContigsSuperclass):
         last_memory_update = int(time.time())
 
         self.progress.update('contigs are being processed ...')
-        self.progress.increment(recieved_contigs)
         while recieved_contigs < self.num_contigs:
             try:
                 contig = output_queue.get()
@@ -686,6 +686,7 @@ class BAMProfiler(dbops.ContigsSuperclass):
                     discarded_contigs += 1
 
                 recieved_contigs += 1
+                self.progress.increment(recieved_contigs)
 
                 if (int(time.time()) - last_memory_update) > 5:
                     memory_usage = utils.get_total_memory_usage()
@@ -723,7 +724,7 @@ class BAMProfiler(dbops.ContigsSuperclass):
         self.store_contigs_buffer()
         self.auxiliary_db.close()
 
-        self.progress.end()
+        self.progress.end(timing_filepath='anvio.debug.timing.old.txt' if anvio.DEBUG else None)
 
         # FIXME: this needs to be checked:
         if discarded_contigs > 0:

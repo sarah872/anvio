@@ -8,6 +8,7 @@ import sys
 import time
 import fcntl
 import struct
+import pandas as pd
 import termios
 import datetime
 import textwrap
@@ -222,7 +223,19 @@ class Progress:
         self.write('\r[%s] %s' % (self.pid, msg))
 
 
-    def end(self):
+    def end(self, timing_filepath=None):
+        """End the current progress
+
+        Parameters
+        ==========
+        timing_filepath : str, None
+            Store the timings of this progress to the filepath `timing_filepath`. File will only be
+            made if a progress_total_items parameter was made during self.new()
+        """
+
+        if timing_filepath and self.progress_total_items is not None:
+            self.t.gen_file_report(timing_filepath)
+
         self.pid = None
         if not self.verbose:
             return
@@ -452,6 +465,23 @@ class Timer:
         self.last_eta_timestamp = eta_timestamp
 
         return eta
+
+
+    def gen_dataframe_report(self):
+        """Returns a dataframe"""
+
+        d = {'key': [], 'time': []}
+        for checkpoint_key, checkpoint in self.checkpoints.items():
+            d['key'].append(checkpoint_key)
+            d['time'].append(checkpoint)
+
+        return pd.DataFrame(d)
+
+
+    def gen_file_report(self, filepath):
+        """Writes to filepath, will overwrite"""
+
+        self.gen_dataframe_report().to_csv(filepath, sep='\t', index=False)
 
 
     def time_elapsed(self, fmt=None):
